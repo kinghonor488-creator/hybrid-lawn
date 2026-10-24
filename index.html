@@ -1,0 +1,1829 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>杂交草坪</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap">
+<style>
+/* 布局：上方木质种子栏 + 下方草坪画布；横屏矮屏时种子栏移到左侧。菜单、图鉴等界面浮在草坪之上。单一白天草坪画面，不跟随深色模式。 */
+:root{
+  --night:#1d2a14;
+  --wood:#8a5a2e;
+  --wood-dark:#5b3a1c;
+  --wood-edge:#3e2611;
+  --paper:#fff3d1;
+  --paper-dim:#efe0b6;
+  --ink:#2b1d10;
+  --sun:#ffd23f;
+  --leaf:#5fa832;
+  --leaf-dark:#2f6b1c;
+  --danger:#e3263a;
+  --display:"ZCOOL KuaiLe","PingFang SC","Hiragino Sans GB",system-ui,sans-serif;
+  --body:-apple-system,"PingFang SC","Hiragino Sans GB",system-ui,sans-serif;
+  color-scheme:light;
+}
+html,body{height:100%}
+[hidden]{display:none!important}
+body{
+  background:var(--night);color:var(--paper);font:14px/1.45 var(--body);
+  overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+}
+button{font:inherit;color:inherit}
+#app{
+  position:relative;height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;
+  padding-block:8px;
+  padding-left:max(8px,env(safe-area-inset-left,0px));
+  padding-right:max(8px,env(safe-area-inset-right,0px));
+}
+#bank{
+  flex:none;display:flex;align-items:stretch;gap:6px;
+  background:var(--wood);border:3px solid var(--wood-edge);border-radius:10px;padding:6px;
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.18),0 3px 0 rgba(0,0,0,.35);
+}
+#sunbox{
+  flex:none;width:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  background:var(--wood-dark);border-radius:7px;padding:4px 0;transition:background .15s;
+}
+#sunbox.nope{background:var(--danger)}
+#sunIcon{width:30px;height:30px}
+#sunNum{font-family:var(--display);font-size:18px;line-height:1;color:var(--paper);font-variant-numeric:tabular-nums}
+#cards{display:flex;gap:5px;flex:1 1 auto;min-width:0}
+.card,.tool{
+  position:relative;overflow:hidden;border:2px solid var(--wood-edge);border-radius:7px;
+  background:var(--paper);color:var(--ink);padding:0;cursor:pointer;
+  transition:transform .12s,box-shadow .12s,filter .12s;
+}
+.card{flex:1 1 0;min-width:0;max-width:66px;height:66px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
+.card canvas{width:100%;max-width:46px;aspect-ratio:1;flex:1 1 auto;min-height:0;object-fit:contain}
+.card .cost{font-family:var(--display);font-size:14px;line-height:1;padding:1px 0 4px;font-variant-numeric:tabular-nums}
+.card .mask{position:absolute;left:0;right:0;top:0;height:0;background:rgba(20,14,6,.55);pointer-events:none}
+.card.off{filter:brightness(.62) saturate(.7)}
+.card.ready{animation:ready .5s ease-out}
+@keyframes ready{0%{box-shadow:0 0 0 4px var(--sun)}100%{box-shadow:0 0 0 0 rgba(255,210,63,0)}}
+.card.sel,.tool.sel{transform:translateY(-3px);box-shadow:0 0 0 3px #fff,0 4px 0 rgba(0,0,0,.4)}
+.card:focus-visible,.tool:focus-visible,.btn:focus-visible,.mbtn:focus-visible,.chip:focus-visible,.tile:focus-visible,.lv:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+#tools{flex:none;display:flex;gap:5px}
+.tool{width:44px;display:flex;align-items:center;justify-content:center}
+#shovel canvas{width:36px;height:36px}
+#side{display:flex;flex-direction:column;gap:5px}
+#side .tool{width:40px;flex:1;font-family:var(--display);font-size:13px;background:var(--wood-dark);color:var(--paper);border-color:var(--wood-edge)}
+#stage{flex:1 1 auto;min-height:0;position:relative;display:flex;align-items:center;justify-content:center}
+#game{display:block;border-radius:8px;box-shadow:0 0 0 3px var(--wood-edge),0 6px 18px rgba(0,0,0,.45);touch-action:none}
+
+/* 浮层 */
+#overlay{position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;background:rgba(15,22,10,.55);padding:10px max(10px,env(safe-area-inset-right,0px)) 10px max(10px,env(safe-area-inset-left,0px));box-sizing:border-box}
+#overlay.soft{background:linear-gradient(rgba(15,22,10,.1),rgba(15,22,10,.6))}
+.panel{
+  max-width:430px;width:100%;max-height:100%;overflow:auto;box-sizing:border-box;
+  background:var(--paper);color:var(--ink);border:4px solid var(--wood-edge);border-radius:14px;
+  padding:16px 18px;box-shadow:0 6px 0 rgba(0,0,0,.35);display:flex;flex-direction:column;gap:10px;
+}
+.panel.wide{max-width:780px}
+.panel h1{margin:0;font-family:var(--display);font-weight:400;font-size:32px;line-height:1.1;color:var(--leaf-dark);text-wrap:balance}
+.panel h2{margin:0;font-family:var(--display);font-weight:400;font-size:22px;color:var(--wood-dark)}
+.panel .sub{margin:0;font-family:var(--display);font-size:16px;color:var(--wood)}
+.panel p{margin:0}
+.panel ul{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:3px}
+.phead{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.btns{display:flex;gap:10px;flex-wrap:wrap;padding-top:4px}
+.btn{
+  font-family:var(--display);font-size:19px;padding:7px 20px;border-radius:10px;cursor:pointer;
+  background:var(--leaf);color:#fff;border:3px solid var(--leaf-dark);box-shadow:0 3px 0 var(--leaf-dark);
+}
+.btn.alt{background:var(--wood);border-color:var(--wood-edge);box-shadow:0 3px 0 var(--wood-edge)}
+.btn.small{font-size:15px;padding:4px 12px}
+.btn:disabled{filter:grayscale(1) brightness(.85);cursor:not-allowed}
+.btn:active:not(:disabled){transform:translateY(2px);box-shadow:0 1px 0 var(--leaf-dark)}
+.reward{display:flex;align-items:center;gap:12px;background:var(--paper-dim);border-radius:10px;padding:8px 12px}
+.reward canvas{width:64px;height:64px;flex:none}
+.reward b{font-family:var(--display);font-weight:400;font-size:20px;color:var(--leaf-dark)}
+
+/* 主菜单 */
+.menu{display:grid;gap:14px;justify-items:center;align-items:center;max-height:100%;overflow:auto;padding:4px}
+.logo{display:flex;flex-direction:column;align-items:center;line-height:1}
+.logo .l1{font-family:var(--display);font-size:clamp(46px,11vw,78px);color:var(--sun);-webkit-text-stroke:2px var(--wood-edge);text-shadow:0 5px 0 var(--wood-edge),0 10px 18px rgba(0,0,0,.4);letter-spacing:.04em}
+.logo small{margin-top:8px;font-family:var(--display);font-size:16px;color:var(--paper);background:var(--wood-dark);border:2px solid var(--wood-edge);border-radius:999px;padding:2px 12px;letter-spacing:.08em}
+.mgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;width:min(440px,100%)}
+.mbtn{
+  display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;cursor:pointer;
+  background:var(--wood);color:var(--paper);border:3px solid var(--wood-edge);border-radius:12px;
+  padding:10px 14px;box-shadow:inset 0 2px 0 rgba(255,255,255,.18),0 4px 0 var(--wood-edge);
+}
+.mbtn b{font-family:var(--display);font-weight:400;font-size:22px;line-height:1.1}
+.mbtn span{font-size:12px;opacity:.85}
+.mbtn:active{transform:translateY(2px);box-shadow:inset 0 2px 0 rgba(255,255,255,.18),0 2px 0 var(--wood-edge)}
+.mbtn.main{grid-column:1/-1;background:var(--leaf);border-color:var(--leaf-dark);box-shadow:inset 0 2px 0 rgba(255,255,255,.25),0 4px 0 var(--leaf-dark)}
+.mfoot{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.chip{cursor:pointer;font-size:13px;padding:4px 12px;border-radius:999px;background:rgba(43,29,16,.75);border:2px solid var(--wood-edge);color:var(--paper)}
+.chip.warn{background:var(--danger);border-color:#7d0f1b}
+@media (orientation:landscape) and (min-width:600px){
+  .menu{grid-template-columns:auto minmax(0,440px);column-gap:36px}
+  .mfoot{grid-column:1/-1}
+}
+
+/* 关卡与挑战 */
+.lvgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:10px}
+.lv{
+  position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;cursor:pointer;
+  background:#fff;border:3px solid var(--wood);border-radius:10px;padding:8px 10px;color:var(--ink);
+}
+.lv b{font-family:var(--display);font-weight:400;font-size:20px;color:var(--leaf-dark);line-height:1}
+.lv .nm{font-size:13px;font-weight:600}
+.lv .rw{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--wood)}
+.lv .rw canvas{width:28px;height:28px}
+.lv .st{position:absolute;top:6px;right:8px;font-family:var(--display);font-size:13px;color:var(--leaf)}
+.lv.locked{background:var(--paper-dim);border-color:#c7b38a;color:#8b7a5c;cursor:not-allowed}
+.lv.locked b{color:#8b7a5c}
+.lv.done{border-color:var(--leaf)}
+
+/* 选卡 */
+.slots{display:flex;gap:6px;flex-wrap:wrap;min-height:60px;background:var(--wood);border-radius:10px;padding:6px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px}
+.tile{
+  position:relative;display:flex;flex-direction:column;align-items:center;gap:0;cursor:pointer;
+  background:#fff;border:2px solid var(--wood);border-radius:9px;padding:4px 2px 3px;color:var(--ink);
+}
+.tile canvas{width:52px;height:52px}
+.tile .tn{font-size:11px;line-height:1.2;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.tile.on{border-color:var(--leaf);box-shadow:0 0 0 2px var(--leaf)}
+.tile.used{opacity:.35}
+.tile.cur{border-color:var(--sun);box-shadow:0 0 0 3px var(--sun)}
+.slots .tile{width:56px;background:var(--paper)}
+.slots .tile canvas{width:44px;height:44px}
+
+/* 图鉴 */
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{cursor:pointer;font-family:var(--display);font-size:16px;padding:4px 14px;border-radius:999px;border:2px solid var(--wood);background:transparent;color:var(--wood-dark)}
+.tab.on{background:var(--wood);color:var(--paper)}
+.alm{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:620px){.alm{grid-template-columns:minmax(0,1fr)}}
+.detail{background:var(--paper-dim);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.detail .dtop{display:flex;gap:12px;align-items:center}
+.detail canvas{width:96px;height:96px;flex:none;background:#fff8e4;border-radius:10px;border:2px solid var(--wood)}
+.detail h3{margin:0;font-family:var(--display);font-weight:400;font-size:22px;color:var(--leaf-dark)}
+.detail .tag{font-size:12px;color:var(--wood)}
+.detail .stat{font-size:13px;font-weight:600}
+.detail .lore{font-size:13px;color:#5b4a35}
+.achs{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.ach{display:flex;gap:10px;align-items:center;background:#fff;border:2px solid var(--wood);border-radius:10px;padding:8px 10px}
+.ach .medal{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-size:16px;background:#d9c9a3;color:#8b7a5c;border:2px solid #b8a27a}
+.ach.got .medal{background:var(--sun);color:var(--wood-edge);border-color:#c98a00}
+.ach b{display:block;font-size:14px}
+.ach span{font-size:12px;color:#6b5a40}
+.ach:not(.got){opacity:.7}
+
+#toast{
+  position:absolute;left:50%;top:max(12px,env(safe-area-inset-top,0px));transform:translate(-50%,-140%);z-index:9;
+  background:var(--wood-dark);color:var(--paper);border:3px solid var(--sun);border-radius:12px;
+  padding:6px 16px;font-family:var(--display);font-size:17px;white-space:nowrap;transition:transform .35s cubic-bezier(.2,1.4,.4,1),opacity .2s;pointer-events:none;opacity:0;
+}
+#toast.show{transform:translate(-50%,0);opacity:1}
+#rotateHint{display:none;margin:0;text-align:center;font-family:var(--display);font-size:15px;color:#cfe3b0}
+@media (orientation:portrait) and (max-width:600px){#rotateHint{display:block}}
+/* 横屏手机：种子栏竖到左侧 */
+@media (orientation:landscape) and (max-height:520px){
+  #app{flex-direction:row}
+  #bank{flex-direction:column;width:132px;box-sizing:border-box;overflow-y:auto}
+  #sunbox{width:auto;flex-direction:row;gap:6px;padding:3px 0}
+  #cards{display:grid;grid-template-columns:1fr 1fr;flex:none}
+  .card{max-width:none;height:54px}
+  .card canvas{max-width:36px}
+  #tools{justify-content:space-between}
+  #side{flex-direction:row}
+  #shovel{width:34px;height:40px;flex:none}
+  #shovel canvas{width:30px;height:30px}
+  #side .tool{width:34px;height:40px;flex:none}
+  .logo .l1{font-size:52px}
+}
+@media (prefers-reduced-motion:reduce){.card,.tool,#toast{transition:none}.card.ready{animation:none}}
+</style>
+
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1d2a14">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="杂交草坪">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<style>
+/* 独立运行时补上 Artifact 外壳原本提供的基础样式：安全区留白和零边距 */
+html{height:100%;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);background:#1d2a14}
+body{margin:0;height:100%}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="bank">
+    <div id="sunbox" title="阳光"><canvas id="sunIcon" width="60" height="60"></canvas><span id="sunNum">150</span></div>
+    <div id="cards"></div>
+    <div id="tools">
+      <button id="shovel" class="tool" aria-label="铲子：移除植物"><canvas width="72" height="72"></canvas></button>
+      <div id="side">
+        <button id="speedBtn" class="tool" aria-label="切换速度">1×</button>
+        <button id="pauseBtn" class="tool" aria-label="暂停">暂停</button>
+      </div>
+    </div>
+  </div>
+  <div id="stage">
+    <canvas id="game"></canvas>
+  </div>
+  <p id="rotateHint">把手机横过来，草坪会更大</p>
+  <div id="overlay"></div>
+  <div id="toast" role="status" aria-live="polite"></div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const W = 880, H = 500, LX = 70, TOP = 40, CW = 80, CH = 90, ROWS = 5, COLS = 9, MAX_SLOTS = 6, INTRO = 2.4;
+const FONT = '"ZCOOL KuaiLe","PingFang SC","Hiragino Sans GB",sans-serif';
+const cv = document.getElementById('game');
+const ctx = cv.getContext('2d');
+let g = ctx; // 当前绘图上下文（图标会临时替换）
+
+/* ================= 数据 ================= */
+const PLANTS = {
+  peaflower:    { name: '豌豆向日葵', cost: 75,  cd: 7.5, hp: 300,  desc: '产阳光，也会射豌豆',
+                  stat: '每 20 秒产 25 阳光 · 每 2 秒射 1 颗豌豆（20 伤害）', lore: '向日葵和豌豆射手的孩子。白天晒太阳，顺手打僵尸。' },
+  firepea:      { name: '火焰豌豆',   cost: 175, cd: 7.5, hp: 300,  desc: '火焰豌豆伤害翻倍，还会溅射',
+                  stat: '每 1.5 秒 1 颗火焰豌豆（40 伤害，周围溅射 13）', lore: '豌豆射手和火炬树桩杂交，射出来的豌豆自带火焰。' },
+  peanut:       { name: '豌豆坚果',   cost: 125, cd: 20,  hp: 2400, desc: '很耐啃的坚果，还能射豌豆',
+                  stat: '2400 耐久 · 每 1.6 秒 1 颗豌豆', lore: '坚果墙嘴里长出了豌豆射手的炮管，挡路也不闲着。' },
+  icemine:      { name: '寒冰土豆雷', cost: 50,  cd: 25,  hp: 300,  desc: '12 秒后出土，炸伤并冻住附近僵尸',
+                  stat: '12 秒出土 · 1800 伤害 · 冻结周围 6 秒', lore: '土豆雷在冰箱里睡了一晚，醒来浑身冒冷气。' },
+  cherrynut:    { name: '樱桃坚果',   cost: 150, cd: 30,  hp: 4000, desc: '超厚坚果，被啃碎时炸飞周围僵尸',
+                  stat: '4000 耐久 · 碎裂时 3×3 爆炸 1800 伤害', lore: '坚果头顶长着两颗樱桃炸弹，千万别咬穿它。' },
+  snowrepeater: { name: '寒冰双发',   cost: 200, cd: 7.5, hp: 300,  desc: '一次射两颗冰豌豆，让僵尸减速',
+                  stat: '每 1.5 秒 2 颗冰豌豆（各 20 伤害，减速 50%）', lore: '寒冰射手和双发射手杂交，冷得连说话都哆嗦。' },
+  chompsquash:  { name: '大嘴窝瓜',   cost: 150, cd: 20,  hp: 300,  desc: '跳起来压扁面前的僵尸，再慢慢嚼',
+                  stat: '压扁 1800 伤害 · 嚼 12 秒后能再出手', lore: '窝瓜有了大嘴花的胃口，压完还要吃掉。' },
+  cherrypepper: { name: '樱桃辣椒',   cost: 125, cd: 35,  hp: 300,  desc: '点燃一整行，烧光这一行的僵尸',
+                  stat: '一次性 · 整行 1800 火焰伤害', lore: '火爆辣椒头上顶着樱桃，脾气比两个加起来还大。' },
+};
+const PLANT_ORDER = Object.keys(PLANTS);
+const BASE_PLANTS = ['peaflower', 'firepea', 'peanut'];
+const NUTS = new Set(['peanut', 'cherrynut']);
+const ZDEF = {
+  normal:   { name: '普通僵尸',       hp: 270, armor: 0,    armorType: null,       speed: 15, cost: 1, lore: '最普通的僵尸，走得慢，啃得勤。' },
+  flag:     { name: '旗帜僵尸',       hp: 270, armor: 0,    armorType: null,       speed: 19, cost: 1, lore: '举着旗子出现，说明一大波僵尸就在后面。' },
+  cone:     { name: '路障僵尸',       hp: 270, armor: 370,  armorType: 'cone',     speed: 15, cost: 2, lore: '头顶路障，比普通僵尸耐打一倍多。' },
+  pole:     { name: '撑杆路障僵尸',   hp: 270, armor: 370,  armorType: 'cone',     speed: 30, cost: 2, pole: true, hybrid: true, lore: '杂交僵尸。跑得快，会撑杆跳过第一株植物，但跳不过坚果。' },
+  bucket:   { name: '铁桶僵尸',       hp: 270, armor: 1100, armorType: 'bucket',   speed: 14, cost: 4, lore: '铁桶很结实，最好用冰冻或爆炸对付。' },
+  football: { name: '铁桶橄榄球僵尸', hp: 270, armor: 1600, armorType: 'football', speed: 26, cost: 6, hybrid: true, lore: '杂交僵尸。戴着焊了铁桶的头盔一路冲锋，又硬又快。' },
+};
+const ZOMBIE_ORDER = Object.keys(ZDEF);
+const ALL_POOL = ['normal', 'cone', 'pole', 'bucket', 'football'];
+
+const LEVELS = [
+  { id: '1-1', name: '初来乍到',   pool: ['normal', 'cone'],                             waves: 8,  flags: [8],     base: 0.6, grow: 0.45, reward: 'icemine' },
+  { id: '1-2', name: '撑杆来袭',   pool: ['normal', 'cone', 'pole'],                     waves: 10, flags: [5, 10], base: 0.8, grow: 0.5,  reward: 'cherrynut' },
+  { id: '1-3', name: '铁桶方阵',   pool: ['normal', 'cone', 'pole', 'bucket'],           waves: 12, flags: [6, 12], base: 1.0, grow: 0.55, reward: 'snowrepeater' },
+  { id: '1-4', name: '橄榄球冲锋', pool: ['normal', 'cone', 'pole', 'bucket', 'football'], waves: 14, flags: [7, 14], base: 1.1, grow: 0.6, reward: 'chompsquash' },
+  { id: '1-5', name: '最终防线',   pool: ALL_POOL,                                       waves: 16, flags: [8, 16], base: 1.3, grow: 0.62, reward: 'cherrypepper' },
+];
+const CHALLENGES = [
+  { id: 'c1', name: '阳光稀缺', desc: '天上不掉阳光，开局 800 阳光，精打细算。',
+    cfg: { pool: ['normal', 'cone', 'pole', 'bucket'], waves: 10, flags: [5, 10], base: 1, grow: 0.5, startSun: 800, skySun: false } },
+  { id: 'c2', name: '僵尸狂奔', desc: '所有僵尸速度快 70%，开局 300 阳光。',
+    cfg: { pool: ['normal', 'cone', 'pole', 'bucket'], waves: 10, flags: [5, 10], base: 0.8, grow: 0.5, startSun: 300, speedMul: 1.7 } },
+  { id: 'c3', name: '速战速决', desc: '波次间隔减半，僵尸一拨接一拨。',
+    cfg: { pool: ALL_POOL, waves: 12, flags: [6, 12], base: 0.9, grow: 0.5, startSun: 400, gapMul: 0.55 } },
+];
+const ACH = [
+  { id: 'first',     name: '初次守住', desc: '通关冒险 1-1' },
+  { id: 'master',    name: '冒险大师', desc: '通关冒险 1-5' },
+  { id: 'challenger',name: '挑战者',   desc: '完成全部 3 个挑战' },
+  { id: 'combo',     name: '一炸多杀', desc: '一次攻击消灭 5 只僵尸' },
+  { id: 'nomower',   name: '推车完好', desc: '不用小推车通关一关冒险' },
+  { id: 'kills100',  name: '百僵斩',   desc: '累计消灭 100 只僵尸' },
+  { id: 'endless10', name: '坚持到底', desc: '无尽模式撑过第 10 波' },
+  { id: 'collector', name: '收藏家',   desc: '图鉴里遇见全部僵尸' },
+  { id: 'rich',      name: '阳光富翁', desc: '一局里攒到 2000 阳光' },
+];
+
+/* ================= 存档 ================= */
+const SAVE_KEY = 'hybrid-lawn-save-v1';
+const defaultSave = () => ({ cleared: [], chal: {}, seen: {}, ach: {}, kills: 0, bestWave: 0, sfx: true, music: true, pick: [] });
+let save = defaultSave();
+try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s) save = Object.assign(defaultSave(), s); } catch (e) {}
+function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
+function plantUnlocked(k) { return BASE_PLANTS.includes(k) || LEVELS.some((L, i) => L.reward === k && save.cleared.includes(i)); }
+function levelOpen(i) { return i === 0 || save.cleared.includes(i - 1); }
+function unlockedPlants() { return PLANT_ORDER.filter(plantUnlocked); }
+
+/* ================= 声音（全部用 WebAudio 合成） ================= */
+const Sound = (() => {
+  let ac = null, sfxBus, musicBus, noiseBuf, track = null, step = 0, nextT = 0, timer = null;
+  const last = {};
+  function ensure() {
+    if (!ac) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      ac = new AC();
+      const master = ac.createGain(); master.gain.value = 0.7; master.connect(ac.destination);
+      sfxBus = ac.createGain(); sfxBus.connect(master);
+      musicBus = ac.createGain(); musicBus.gain.value = 0.32; musicBus.connect(master);
+      noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+      const ch = noiseBuf.getChannelData(0);
+      for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
+    }
+    if (ac.state === 'suspended') ac.resume();
+    return ac;
+  }
+  function tone(f, d, type = 'sine', vol = 0.2, slide = null, delay = 0, bus = sfxBus) {
+    const t = ac.currentTime + delay;
+    const o = ac.createOscillator(), gn = ac.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + d);
+    gn.gain.setValueAtTime(0.0001, t);
+    gn.gain.exponentialRampToValueAtTime(vol, t + 0.012);
+    gn.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    o.connect(gn); gn.connect(bus); o.start(t); o.stop(t + d + 0.03);
+  }
+  function noise(d, vol, freq, delay = 0, type = 'lowpass') {
+    const t = ac.currentTime + delay;
+    const src = ac.createBufferSource(); src.buffer = noiseBuf;
+    const f = ac.createBiquadFilter(); f.type = type; f.frequency.value = freq;
+    const gn = ac.createGain();
+    gn.gain.setValueAtTime(vol, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    src.connect(f); f.connect(gn); gn.connect(sfxBus);
+    src.start(t, Math.random() * 0.5); src.stop(t + d + 0.03);
+  }
+  const GAP = { shoot: 0.07, hit: 0.05, firehit: 0.06, icehit: 0.06, chomp: 0.28, groan: 4, sun: 0.05 };
+  function play(name) {
+    if (!save.sfx || !ensure()) return;
+    const now = ac.currentTime;
+    if (last[name] && now - last[name] < (GAP[name] || 0.03)) return;
+    last[name] = now;
+    switch (name) {
+      case 'plant': tone(200, 0.16, 'sine', 0.45, 70); noise(0.12, 0.18, 700); break;
+      case 'shoot': tone(560, 0.07, 'square', 0.05, 240); break;
+      case 'hit': noise(0.06, 0.2, 2400, 0, 'bandpass'); break;
+      case 'firehit': noise(0.14, 0.22, 1100); tone(320, 0.1, 'sawtooth', 0.04, 120); break;
+      case 'icehit': tone(1900, 0.08, 'triangle', 0.08, 1200); noise(0.05, 0.1, 5000, 0, 'highpass'); break;
+      case 'sun': tone(880, 0.12, 'triangle', 0.18); tone(1320, 0.2, 'triangle', 0.16, null, 0.07); break;
+      case 'boom': noise(0.8, 0.7, 520); tone(95, 0.6, 'sine', 0.55, 30); break;
+      case 'burn': noise(0.9, 0.5, 900); tone(140, 0.7, 'sawtooth', 0.08, 60); break;
+      case 'freeze': tone(2400, 0.5, 'sine', 0.12, 900); noise(0.45, 0.16, 5000, 0, 'highpass'); break;
+      case 'slam': tone(130, 0.28, 'sine', 0.55, 40); noise(0.22, 0.35, 380); break;
+      case 'jump': tone(300, 0.2, 'triangle', 0.12, 700); break;
+      case 'chomp': noise(0.05, 0.16, 1500, 0, 'bandpass'); noise(0.05, 0.14, 1100, 0.1, 'bandpass'); break;
+      case 'select': tone(700, 0.05, 'square', 0.05); break;
+      case 'cant': tone(210, 0.16, 'square', 0.07, 150); break;
+      case 'tick': tone(440, 0.14, 'triangle', 0.22); break;
+      case 'go': tone(660, 0.1, 'triangle', 0.25); tone(990, 0.3, 'triangle', 0.25, null, 0.1); break;
+      case 'horn': tone(220, 0.7, 'sawtooth', 0.1, 196); tone(330, 0.7, 'sawtooth', 0.07, 294); break;
+      case 'win': [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.3, 'triangle', 0.2, null, i * 0.12)); break;
+      case 'lose': [392, 330, 262, 196].forEach((f, i) => tone(f, 0.4, 'sawtooth', 0.08, f * 0.97, i * 0.22)); break;
+      case 'ach': tone(988, 0.12, 'triangle', 0.2); tone(1319, 0.35, 'triangle', 0.2, null, 0.1); break;
+      case 'mower': noise(0.9, 0.3, 300); tone(75, 0.9, 'sawtooth', 0.07, 95); break;
+      case 'pop': tone(320, 0.1, 'square', 0.08, 640); break;
+      case 'groan': tone(150, 0.7, 'sawtooth', 0.04, 95); break;
+      case 'unlock': [659, 784, 988, 1319].forEach((f, i) => tone(f, 0.25, 'square', 0.06, null, i * 0.09)); break;
+    }
+  }
+  // 简单循环配乐：8 分音符步进
+  const TRACKS = {
+    menu: { step: 0.3,  bass: [48, 48, 55, 55, 57, 57, 52, 52], mel: [72, null, 74, 76, null, 79, 76, 74, 72, null, 69, 72, null, 74, null, null] },
+    game: { step: 0.24, bass: [45, 45, 52, 52, 43, 43, 50, 50], mel: [69, 72, 74, 72, 76, null, 74, 72, 69, null, 67, 69, 72, null, null, null,
+                                                                       69, 72, 74, 76, 79, null, 76, 74, 72, null, 74, 72, 69, null, null, null] },
+  };
+  const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+  function tick() {
+    if (!track || !ac) return;
+    const T = TRACKS[track];
+    while (nextT < ac.currentTime + 0.25) {
+      const delay = Math.max(0, nextT - ac.currentTime);
+      if (step % 2 === 0) tone(hz(T.bass[(step / 2) % T.bass.length]), T.step * 1.8, 'triangle', 0.16, null, delay, musicBus);
+      const m = T.mel[step % T.mel.length];
+      if (m) tone(hz(m), T.step * 0.9, 'square', 0.035, null, delay, musicBus);
+      nextT += T.step; step++;
+    }
+  }
+  function music(name) {
+    track = save.music ? name : null;
+    if (!track) return;
+    if (!ensure()) return;
+    step = 0; nextT = ac.currentTime + 0.05;
+    if (!timer) timer = setInterval(tick, 60);
+  }
+  return { play, ensure, music, get track() { return track; } };
+})();
+const sfx = n => Sound.play(n);
+let wantMusic = 'menu';
+document.addEventListener('pointerdown', () => {
+  if (Sound.ensure() && save.music && Sound.track !== wantMusic) Sound.music(wantMusic);
+}, { capture: true });
+
+/* ================= 工具 ================= */
+const rnd = (a, b) => a + Math.random() * (b - a);
+const clamp01 = v => Math.max(0, Math.min(1, v));
+const cellCX = c => LX + c * CW + CW / 2;
+const cellCY = r => TOP + r * CH + CH / 2;
+
+/* ================= 状态 ================= */
+let S, CFG, running = false, paused = false, speed = 1;
+
+function makeCfg(base) {
+  return Object.assign({ startSun: 150, skySun: true, speedMul: 1, gapMul: 1, flags: [], flagEvery: 0 }, base);
+}
+function isFlag(i) { return CFG.flagEvery ? i % CFG.flagEvery === 0 : CFG.flags.includes(i); }
+function gapAfter(i) {
+  let gap = CFG.waves === Infinity ? Math.max(10, 15 - i * 0.15) : Math.max(9, 18 - i * 0.5);
+  gap *= CFG.gapMul;
+  if (isFlag(i + 1)) gap += 6;
+  return gap;
+}
+function newState(cfg, deck) {
+  CFG = cfg;
+  const cd = {};
+  for (const k of deck) cd[k] = 0;
+  for (const k of ['icemine', 'cherrynut', 'chompsquash', 'cherrypepper']) if (k in cd) cd[k] = PLANTS[k].cd * 0.5;
+  const s = {
+    t: 0, intro: 0, introStep: -1, sun: cfg.startSun, kills: 0, deck,
+    plants: Array.from({ length: ROWS }, () => Array(COLS).fill(null)),
+    zombies: [], peas: [], suns: [], fx: [], parts: [], texts: [],
+    mowers: Array.from({ length: ROWS }, () => ({ x: LX - 52, state: 'ready' })),
+    cd, selected: null, nextSky: 5, lastRow: -1, banner: null, bannerFor: {},
+    waveNum: 0, nextWaveT: 18, pending: [], over: false, ending: 0, hover: null,
+    shake: 0, flashA: 0, mowerUsed: false, demo: false,
+  };
+  // 进度条：预先算出每一波的时间
+  if (cfg.waves !== Infinity) {
+    let t = 18; const times = [t];
+    for (let i = 1; i < cfg.waves; i++) { t += gapAfter(i); times.push(t); }
+    s.waveTimes = times;
+    s.endT = t;
+  }
+  return s;
+}
+
+/* ---------- 波次生成 ---------- */
+function buildWave(i) {
+  const flag = isFlag(i);
+  let budget = Math.floor(CFG.base + i * CFG.grow);
+  if (flag) budget = Math.floor(budget * 2.2) + 2;
+  budget = Math.max(1, budget);
+  const list = flag ? ['flag'] : [];
+  while (budget > 0) {
+    const opts = CFG.pool.filter(t => ZDEF[t].cost <= budget && ZDEF[t].cost <= 1 + i * 0.7);
+    if (!opts.length) break;
+    let sum = 0;
+    const w = opts.map(t => { const v = 1 / ZDEF[t].cost + (ZDEF[t].cost > 1 ? 0.35 : 0); sum += v; return v; });
+    let r = Math.random() * sum, pick = opts[0];
+    for (let j = 0; j < opts.length; j++) { r -= w[j]; if (r <= 0) { pick = opts[j]; break; } }
+    list.push(pick); budget -= ZDEF[pick].cost;
+  }
+  return list;
+}
+
+/* ================= 逻辑 ================= */
+function makePlant(type) {
+  const d = PLANTS[type];
+  return { type, hp: d.hp, maxHp: d.hp, age: 0, shootT: 0.6, sunT: 7, armed: false, hurt: 0, recoil: 0, fuse: 1, chew: 0, atk: null };
+}
+function addSun(x, y, targetY, value = 25) {
+  S.suns.push({ x, y, targetY, value, life: 10, fly: false, flyT: 0, sx: 0, sy: 0, born: S.t });
+}
+function spawnZombie(type) {
+  let row;
+  do { row = Math.floor(Math.random() * ROWS); } while (row === S.lastRow && Math.random() < 0.7);
+  S.lastRow = row;
+  const d = ZDEF[type];
+  S.zombies.push({
+    type, row, x: W + 20 + rnd(0, 30), hp: d.hp, armor: d.armor, maxArmor: d.armor,
+    armorType: d.armorType, speed: d.speed * CFG.speedMul, pole: !!d.pole, jumping: 0,
+    frozen: 0, slow: 0, flash: 0, anim: rnd(0, 6), eating: false, chompT: 0,
+    dead: false, deadT: 0, burnt: false, ashed: false, armOff: false, headOff: false,
+  });
+  if (!save.seen[type]) {
+    save.seen[type] = true; persist();
+    if (ZOMBIE_ORDER.every(k => save.seen[k])) unlockAch('collector');
+  }
+  if (Math.random() < 0.3) sfx('groan');
+}
+function part(o) {
+  S.parts.push(Object.assign({ vx: 0, vy: 0, grav: 600, life: 0.6, t: 0, size: 4, color: '#fff', shape: 'circle', rot: 0, vr: 0, ground: null }, o));
+}
+function floatText(x, y, text, color = '#fff3d1', size = 20) {
+  S.texts.push({ x, y, text, color, size, t: 0 });
+}
+function zombieAhead(r, px) {
+  return S.zombies.some(z => z.row === r && !z.dead && z.x > px - 10 && z.x < W - 10);
+}
+// 返回 true 表示这次攻击打死了僵尸
+function hurtZombie(z, dmg, opt = {}) {
+  if (z.dead) return false;
+  const y = cellCY(z.row) + 32;
+  if (z.armor > 0) {
+    z.armor -= dmg;
+    if (z.armor <= 0) {
+      z.hp += z.armor; z.armor = 0;
+      part({ shape: z.armorType, x: z.x - 4, y: y - 100, vx: rnd(60, 120), vy: rnd(-320, -220), vr: rnd(6, 10), life: 1.2, ground: y });
+      sfx('pop');
+    }
+  } else z.hp -= dmg;
+  z.flash = 0.1;
+  if (!z.armOff && z.hp < 135 && z.hp > 0) {
+    z.armOff = true;
+    part({ shape: 'arm', x: z.x - 20, y: y - 58, vx: rnd(-60, -20), vy: rnd(-200, -120), vr: rnd(-8, 8), life: 1.1, ground: y });
+  }
+  if (z.hp <= 0) {
+    z.dead = true; z.deadT = 0; S.kills++; save.kills++;
+    if (save.kills >= 100) unlockAch('kills100');
+    if (opt.burn) z.burnt = true;
+    else {
+      z.headOff = true;
+      part({ shape: 'head', x: z.x - 4, y: y - 81, vx: rnd(30, 90), vy: rnd(-300, -200), vr: rnd(4, 9), life: 1.2, ground: y, burnt: false });
+    }
+    return true;
+  }
+  return false;
+}
+function shoot(r, x, y, kind) {
+  S.peas.push({ row: r, x, y, kind, dmg: kind === 'fire' ? 40 : 20 });
+  sfx('shoot');
+}
+function comboCheck(n) { if (n >= 5) unlockAch('combo'); }
+function explodeFire(r, c) {
+  const px = cellCX(c), py = cellCY(r);
+  let n = 0;
+  for (const z of S.zombies)
+    if (Math.abs(z.row - r) <= 1 && Math.abs(z.x - px) < 130 && hurtZombie(z, 1800, { burn: true })) n++;
+  comboCheck(n);
+  S.fx.push({ type: 'boom', x: px, y: py, t: 0, dur: 0.75 });
+  for (let i = 0; i < 22; i++) {
+    const a = rnd(0, Math.PI * 2), sp = rnd(120, 360);
+    part({ x: px, y: py, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 120, grav: 500, life: rnd(0.5, 0.9), size: rnd(3, 7), color: ['#ff7a1a', '#ffd23f', '#5b3613', '#e3263a'][i % 4], shape: i % 3 ? 'circle' : 'rect', vr: rnd(-10, 10) });
+  }
+  S.shake = Math.max(S.shake, 12); S.flashA = 0.55;
+  sfx('boom');
+}
+function explodeIce(r, c) {
+  const px = cellCX(c), py = cellCY(r) + 10;
+  let n = 0;
+  for (const z of S.zombies) {
+    if (z.row === r && Math.abs(z.x - px) < 90 && hurtZombie(z, 1800)) n++;
+    if (Math.abs(z.row - r) <= 1 && Math.abs(z.x - px) < 170) z.frozen = Math.max(z.frozen, 6);
+  }
+  comboCheck(n);
+  S.fx.push({ type: 'ice', x: px, y: py, t: 0, dur: 0.8 });
+  for (let i = 0; i < 18; i++) {
+    const a = rnd(0, Math.PI * 2), sp = rnd(100, 300);
+    part({ x: px, y: py, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 100, grav: 400, life: rnd(0.5, 0.9), size: rnd(3, 6), color: i % 2 ? '#dff4ff' : '#7fd3ff', shape: 'rect', vr: rnd(-12, 12) });
+  }
+  S.shake = Math.max(S.shake, 6); S.flashA = 0.3;
+  sfx('freeze');
+}
+function burnRow(r) {
+  let n = 0;
+  for (const z of S.zombies) if (z.row === r && hurtZombie(z, 1800, { burn: true })) n++;
+  comboCheck(n);
+  S.fx.push({ type: 'fireline', x: 0, y: cellCY(r), t: 0, dur: 0.9 });
+  for (let i = 0; i < 30; i++)
+    part({ x: rnd(LX, W), y: cellCY(r) + rnd(-10, 30), vx: rnd(-30, 30), vy: rnd(-260, -120), grav: -60, life: rnd(0.5, 1), size: rnd(3, 6), color: i % 2 ? '#ffb12b' : '#ff5a1a' });
+  S.shake = Math.max(S.shake, 10); S.flashA = 0.4;
+  sfx('burn');
+}
+function killPlant(r, c) {
+  const p = S.plants[r][c];
+  S.plants[r][c] = null;
+  if (!p) return;
+  if (p.type === 'cherrynut') explodeFire(r, c);
+  else for (let i = 0; i < 8; i++)
+    part({ x: cellCX(c) + rnd(-12, 12), y: cellCY(r) + rnd(-10, 20), vx: rnd(-80, 80), vy: rnd(-220, -80), life: 0.6, size: rnd(3, 5), color: '#5fa832', shape: 'rect', vr: rnd(-10, 10) });
+}
+function findTarget(z) {
+  const front = z.x - 16;
+  for (let c = COLS - 1; c >= 0; c--) {
+    const p = S.plants[z.row][c];
+    if (!p || p.atk) continue;
+    const px = cellCX(c);
+    if (front <= px + 28 && front >= px - 34) return { p, c };
+  }
+  return null;
+}
+function showBanner(text) { S.banner = { text, t: 0 }; sfx('horn'); }
+
+function updateEffects(dt) {
+  S.shake = Math.max(0, S.shake - dt * 40);
+  S.flashA = Math.max(0, S.flashA - dt * 2.5);
+  for (const p of S.parts) {
+    p.t += dt; p.vy += p.grav * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
+    if (p.ground != null && p.y > p.ground) { p.y = p.ground; p.vy *= -0.3; p.vx *= 0.6; p.vr *= 0.5; }
+  }
+  S.parts = S.parts.filter(p => p.t < p.life);
+  for (const t of S.texts) t.t += dt;
+  S.texts = S.texts.filter(t => t.t < 1);
+  for (const f of S.fx) f.t += dt;
+  S.fx = S.fx.filter(f => f.t < f.dur);
+}
+
+function update(dt) {
+  if (S.demo) { S.t += dt; for (const z of S.zombies) z.anim += dt * 0.6; return; }
+  updateEffects(dt);
+  if (S.intro < INTRO) {
+    S.intro += dt;
+    const step = Math.min(2, Math.floor(S.intro / (INTRO / 3)));
+    if (step !== S.introStep && S.intro < INTRO) { S.introStep = step; sfx(step === 2 ? 'go' : 'tick'); }
+    return;
+  }
+  S.t += dt;
+  for (const k of S.deck) {
+    const before = S.cd[k];
+    S.cd[k] = Math.max(0, S.cd[k] - dt);
+    if (before > 0 && S.cd[k] === 0 && cardEls[k]) { const b = cardEls[k].b; b.classList.remove('ready'); void b.offsetWidth; b.classList.add('ready'); }
+  }
+  if (S.banner) { S.banner.t += dt; if (S.banner.t > 3.2) S.banner = null; }
+  if (S.sun >= 2000) unlockAch('rich');
+
+  // 波次
+  if (S.waveNum < CFG.waves) {
+    const nxt = S.waveNum + 1;
+    if (isFlag(nxt) && !S.bannerFor[nxt] && S.t >= S.nextWaveT - 4) {
+      S.bannerFor[nxt] = true;
+      showBanner(nxt === CFG.waves ? '最后一波！' : '一大波僵尸正在接近！');
+    }
+    if (S.t >= S.nextWaveT) {
+      S.waveNum = nxt;
+      buildWave(nxt).forEach((type, i) => S.pending.push({ t: S.t + i * 1.1, type }));
+      S.nextWaveT += gapAfter(nxt);
+      if (CFG.waves === Infinity && nxt > 10) unlockAch('endless10');
+    }
+  }
+  for (const p of S.pending) if (p.t <= S.t) { spawnZombie(p.type); p.done = true; }
+  S.pending = S.pending.filter(p => !p.done);
+
+  if (CFG.skySun) {
+    S.nextSky -= dt;
+    if (S.nextSky <= 0) {
+      S.nextSky = rnd(8, 11);
+      addSun(rnd(LX + 40, LX + CW * COLS - 40), TOP - 10, rnd(TOP + 60, TOP + CH * ROWS - 40));
+    }
+  }
+
+  // 植物
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const p = S.plants[r][c];
+    if (!p) continue;
+    const px = cellCX(c), py = cellCY(r);
+    p.age += dt; p.hurt = Math.max(0, p.hurt - dt); p.recoil = Math.max(0, p.recoil - dt);
+    switch (p.type) {
+      case 'peaflower':
+        p.sunT -= dt;
+        if (p.sunT <= 0) { p.sunT = 20; addSun(px + rnd(-14, 14), py - 30, py + 14); }
+        // fallthrough 射击
+      case 'firepea': case 'peanut': case 'snowrepeater':
+        p.shootT -= dt;
+        if (p.shootT <= 0 && zombieAhead(r, px)) {
+          p.shootT = p.type === 'peaflower' ? 2 : p.type === 'peanut' ? 1.6 : 1.5;
+          p.recoil = 0.12;
+          if (p.type === 'peanut') shoot(r, px + 34, py - 3, 'pea');
+          else if (p.type === 'snowrepeater') { shoot(r, px + 24, py - 14, 'ice'); S.peas.push({ row: r, x: px - 4, y: py - 14, kind: 'ice', dmg: 20 }); }
+          else shoot(r, px + 22, py - 14, p.type === 'firepea' ? 'fire' : 'pea');
+        }
+        break;
+      case 'icemine':
+        if (!p.armed && p.age >= 12) {
+          p.armed = true;
+          for (let i = 0; i < 8; i++) part({ x: px + rnd(-18, 18), y: py + 24, vx: rnd(-60, 60), vy: rnd(-160, -60), life: 0.5, size: rnd(2, 4), color: '#7a5530' });
+        }
+        if (p.armed && S.zombies.some(z => z.row === r && !z.dead && z.x - 16 < px + 38 && z.x > px - 30)) {
+          S.plants[r][c] = null; explodeIce(r, c);
+        }
+        break;
+      case 'chompsquash':
+        if (p.atk) {
+          p.atk.t += dt;
+          if (!p.atk.hit && p.atk.t >= 0.4) {
+            p.atk.hit = true;
+            let n = 0;
+            for (const z of S.zombies) if (z.row === r && Math.abs(z.x - p.atk.tx) < 48 && hurtZombie(z, 1800)) n++;
+            comboCheck(n);
+            S.shake = Math.max(S.shake, 8);
+            floatText(p.atk.tx, py - 40, '啪！', '#ffe36b', 30);
+            for (let i = 0; i < 12; i++) part({ x: p.atk.tx + rnd(-30, 30), y: py + 30, vx: rnd(-140, 140), vy: rnd(-180, -60), life: 0.6, size: rnd(3, 6), color: '#8a6a3e' });
+            sfx('slam');
+          }
+          if (p.atk.t >= 0.8) { p.atk = null; p.chew = 12; }
+        } else if (p.chew > 0) {
+          p.chew -= dt;
+          if (Math.random() < dt * 2) sfx('chomp');
+        } else {
+          let best = null;
+          for (const z of S.zombies)
+            if (z.row === r && !z.dead && z.jumping <= 0 && z.x > px - 30 && z.x < px + 130 && (!best || z.x < best.x)) best = z;
+          if (best) { p.atk = { t: 0, tx: best.x, hit: false }; sfx('jump'); }
+        }
+        break;
+      case 'cherrypepper':
+        p.fuse -= dt;
+        if (p.fuse <= 0) { S.plants[r][c] = null; burnRow(r); }
+        break;
+    }
+  }
+
+  // 僵尸
+  for (const z of S.zombies) {
+    if (z.dead) {
+      z.deadT += dt;
+      if (z.burnt && !z.ashed && z.deadT > 0.55) {
+        z.ashed = true;
+        const y = cellCY(z.row) + 32;
+        for (let i = 0; i < 16; i++) part({ x: z.x + rnd(-16, 16), y: y - rnd(0, 90), vx: rnd(-30, 50), vy: rnd(-60, 10), grav: 120, life: rnd(0.5, 0.9), size: rnd(2, 5), color: i % 2 ? '#2a2a2a' : '#555' });
+      }
+      continue;
+    }
+    z.flash = Math.max(0, z.flash - dt);
+    if (z.frozen > 0) { z.frozen -= dt; continue; }
+    const k = z.slow > 0 ? 0.5 : 1;
+    z.slow = Math.max(0, z.slow - dt);
+    z.anim += dt * k;
+    if (z.jumping > 0) {
+      z.jumping -= dt;
+      z.x -= (CW + 30) / 0.8 * dt;
+      if (z.jumping <= 0) { z.pole = false; z.speed = ZDEF.normal.speed * CFG.speedMul; }
+      continue;
+    }
+    const tg = findTarget(z);
+    if (tg) {
+      if (z.pole) {
+        z.pole = false; z.speed = ZDEF.normal.speed * CFG.speedMul;
+        if (!NUTS.has(tg.p.type)) { z.jumping = 0.8; sfx('jump'); continue; }
+        floatText(z.x - 20, cellCY(z.row) - 20, '杆断了！');
+        part({ shape: 'pole', x: z.x - 20, y: cellCY(z.row) - 10, vx: 80, vy: -200, vr: 8, life: 1, ground: cellCY(z.row) + 32 });
+      }
+      z.eating = true;
+      tg.p.hp -= 100 * dt * k; tg.p.hurt = 0.1;
+      z.chompT -= dt;
+      if (z.chompT <= 0) {
+        z.chompT = 0.45; sfx('chomp');
+        part({ x: cellCX(tg.c) + 14, y: cellCY(z.row) + 4, vx: rnd(-40, 60), vy: rnd(-160, -80), life: 0.45, size: 3, color: '#7fc04a', shape: 'rect', vr: 8 });
+      }
+      if (tg.p.hp <= 0) killPlant(z.row, tg.c);
+    } else {
+      z.eating = false;
+      z.x -= z.speed * k * dt;
+    }
+    const m = S.mowers[z.row];
+    if (z.x < LX + 4 && m.state === 'ready') { m.state = 'go'; S.mowerUsed = true; sfx('mower'); }
+    if (z.x < 12 && m.state === 'done') { gameOver(false); return; }
+  }
+  S.zombies = S.zombies.filter(z => !(z.dead && z.deadT > 1) && z.x > -60);
+
+  // 小推车
+  S.mowers.forEach((m, r) => {
+    if (m.state !== 'go') return;
+    m.x += 330 * dt;
+    if (Math.random() < 0.6) part({ x: m.x, y: cellCY(r) + 28, vx: rnd(-120, -40), vy: rnd(-80, -20), grav: 100, life: 0.4, size: rnd(2, 4), color: '#cbb48a' });
+    for (const z of S.zombies)
+      if (z.row === r && !z.dead && Math.abs(z.x - (m.x + 20)) < 30) { z.armor = 0; hurtZombie(z, 9999); }
+    if (m.x > W + 40) m.state = 'done';
+  });
+
+  // 豌豆
+  for (const p of S.peas) {
+    p.x += 320 * dt;
+    if (p.kind === 'fire' && Math.random() < 0.5) part({ x: p.x - 8, y: p.y + rnd(-3, 3), vx: rnd(-60, -20), vy: rnd(-40, 0), grav: -40, life: 0.25, size: rnd(2, 3.5), color: '#ffb12b' });
+    let hit = null;
+    for (const z of S.zombies)
+      if (z.row === p.row && !z.dead && p.x >= z.x - 22 && p.x <= z.x + 18 && (!hit || z.x < hit.x)) hit = z;
+    if (hit) {
+      hurtZombie(hit, p.dmg, { burn: p.kind === 'fire' && hit.armor <= 0 && hit.hp <= p.dmg && Math.random() < 0.3 });
+      if (p.kind === 'fire') {
+        for (const z of S.zombies) if (z !== hit && z.row === p.row && Math.abs(z.x - hit.x) < 50) hurtZombie(z, 13);
+        hit.slow = 0;
+        sfx('firehit');
+      } else if (p.kind === 'ice') { hit.slow = 4; sfx('icehit'); }
+      else sfx('hit');
+      const col = p.kind === 'fire' ? ['#ff8a2b', '#ffe36b'] : p.kind === 'ice' ? ['#bfe9ff', '#7fd3ff'] : ['#8fe04a', '#5fa832'];
+      for (let i = 0; i < 5; i++) part({ x: p.x, y: p.y, vx: rnd(-140, 40), vy: rnd(-160, 60), grav: 500, life: 0.3, size: rnd(2, 4), color: col[i % 2], shape: p.kind === 'ice' ? 'rect' : 'circle', vr: 10 });
+      p.gone = true;
+    } else if (p.x > W + 20) p.gone = true;
+  }
+  S.peas = S.peas.filter(p => !p.gone);
+
+  // 阳光
+  for (const s of S.suns) {
+    if (s.fly) { s.flyT += dt; continue; }
+    if (s.y < s.targetY) s.y = Math.min(s.targetY, s.y + 60 * dt);
+    else { s.life -= dt; if (s.life <= 0) s.gone = true; }
+  }
+  S.suns = S.suns.filter(s => !s.gone && !(s.fly && s.flyT > 0.5));
+
+  // 胜利判定
+  if (S.waveNum >= CFG.waves && S.pending.length === 0 && S.zombies.length === 0) {
+    S.ending += dt;
+    if (S.ending > 1.2) gameOver(true);
+  }
+}
+
+/* ================= 绘制 ================= */
+function ell(x, y, rx, ry, fill, stroke, lw) {
+  g.beginPath();
+  g.ellipse(x, y, Math.max(0.1, rx), Math.max(0.1, ry), 0, 0, Math.PI * 2);
+  if (fill) { g.fillStyle = fill; g.fill(); }
+  if (stroke) { g.strokeStyle = stroke; g.lineWidth = lw || 2.5; g.stroke(); }
+}
+function rr(x, y, w, h, r) {
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r);
+  g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+}
+function line(x1, y1, x2, y2, color, lw) {
+  g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2);
+  g.strokeStyle = color; g.lineWidth = lw; g.lineCap = 'round'; g.stroke();
+}
+function poly(pts, fill, stroke, lw = 2.5) {
+  g.beginPath(); g.moveTo(pts[0], pts[1]);
+  for (let i = 2; i < pts.length; i += 2) g.lineTo(pts[i], pts[i + 1]);
+  g.closePath();
+  if (fill) { g.fillStyle = fill; g.fill(); }
+  if (stroke) { g.strokeStyle = stroke; g.lineWidth = lw; g.stroke(); }
+}
+function shadow(x, y, w) { ell(x, y, w, w * 0.28, 'rgba(0,0,0,.2)'); }
+function stem(x, y, top) {
+  g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x - 7, (y + top) / 2, x, top);
+  g.strokeStyle = '#3d7a22'; g.lineWidth = 5; g.lineCap = 'round'; g.stroke();
+  ell(x - 10, y - 3, 11, 4, '#5fa832', '#2f6b1c', 1.5);
+  ell(x + 10, y - 3, 11, 4, '#5fa832', '#2f6b1c', 1.5);
+}
+function peaHead(x, y, r, body, dark) {
+  ell(x - r * 0.95, y - r * 0.6, r * 0.45, r * 0.22, body, dark, 1.5);
+  g.beginPath(); g.rect(x + r * 0.3, y - r * 0.42, r * 1.05, r * 0.84);
+  g.fillStyle = body; g.fill(); g.strokeStyle = dark; g.lineWidth = 2.5; g.stroke();
+  ell(x + r * 1.38, y, r * 0.3, r * 0.52, body, dark);
+  ell(x + r * 1.43, y, r * 0.15, r * 0.32, dark);
+  ell(x, y, r, r, body, dark);
+  ell(x + r * 0.2, y - r * 0.32, r * 0.24, r * 0.3, '#fff', dark, 1.5);
+  ell(x + r * 0.28, y - r * 0.3, r * 0.11, r * 0.16, '#111');
+}
+function flame(x, y, s, t) {
+  const f = Math.sin(t * 12) * s * 0.12;
+  const path = k => {
+    g.beginPath(); g.moveTo(x - s * 0.6 * k, y);
+    g.quadraticCurveTo(x - s * k, y - s * 0.9 * k, x - s * 0.5 * k + f, y - s * 1.7 * k);
+    g.quadraticCurveTo(x - s * 0.15 * k, y - s * k, x + s * 0.1 * k, y - s * 1.35 * k - f);
+    g.quadraticCurveTo(x + s * 0.5 * k, y - s * 0.6 * k, x + s * 0.4 * k, y);
+    g.closePath();
+  };
+  path(1); g.fillStyle = '#ffb12b'; g.fill(); g.strokeStyle = '#c2410c'; g.lineWidth = 2; g.stroke();
+  path(0.55); g.fillStyle = '#ffe36b'; g.fill();
+}
+function nut(x, y, ratio) {
+  ell(x, y - 30, 24, 31, '#d9a061', '#6e4520', 3);
+  ell(x + 7, y - 17, 13, 11, 'rgba(110,69,32,.18)');
+  ell(x - 7, y - 40, 5, 6.5, '#fff', '#3b2410', 1.5);
+  ell(x + 8, y - 40, 5, 6.5, '#fff', '#3b2410', 1.5);
+  ell(x - 5, y - 39, 2.4, 3, '#111');
+  ell(x + 10, y - 39, 2.4, 3, '#111');
+  g.beginPath();
+  if (ratio > 0.5) g.arc(x + 1, y - 30, 6, 0.2 * Math.PI, 0.8 * Math.PI);
+  else g.arc(x + 1, y - 22, 6, 1.2 * Math.PI, 1.8 * Math.PI);
+  g.strokeStyle = '#3b2410'; g.lineWidth = 2; g.stroke();
+  g.strokeStyle = '#5b3613'; g.lineWidth = 2;
+  if (ratio < 0.66) { g.beginPath(); g.moveTo(x - 18, y - 50); g.lineTo(x - 10, y - 44); g.lineTo(x - 15, y - 36); g.lineTo(x - 8, y - 30); g.stroke(); }
+  if (ratio < 0.33) { g.beginPath(); g.moveTo(x + 20, y - 46); g.lineTo(x + 12, y - 38); g.lineTo(x + 18, y - 28); g.lineTo(x + 11, y - 20); g.stroke(); }
+}
+function cherries(x, y) {
+  line(x + 2, y - 16, x - 9, y - 2, '#3d7a22', 2.5);
+  line(x + 2, y - 16, x + 11, y - 4, '#3d7a22', 2.5);
+  ell(x + 5, y - 17, 6, 3, '#5fa832', '#2f6b1c', 1.2);
+  ell(x - 9, y + 3, 9, 9, '#e3263a', '#7d0f1b', 2);
+  ell(x + 11, y + 1, 9, 9, '#e3263a', '#7d0f1b', 2);
+  ell(x - 12, y, 2.5, 2, 'rgba(255,255,255,.7)');
+  ell(x + 8, y - 2, 2.5, 2, 'rgba(255,255,255,.7)');
+}
+
+function drawPlant(type, x, y, t, p) {
+  const bob = Math.sin(t * 2.2 + x * 0.05) * 1.5;
+  const ratio = p ? p.hp / p.maxHp : 1;
+  const rc = p && p.recoil > 0 ? -3 : 0;
+  g.save();
+  // 种下时的弹跳
+  if (p && p.age < 0.3) {
+    const k = p.age / 0.3;
+    const sy = 0.55 + 0.45 * k + Math.sin(k * Math.PI) * 0.2, sx = 1 + Math.sin(k * Math.PI) * 0.12;
+    g.translate(x, y); g.scale(sx, sy); g.translate(-x, -y);
+  }
+  if (p && p.hurt > 0) g.translate(Math.sin(t * 60) * 1.2, 0);
+  switch (type) {
+    case 'peaflower': {
+      shadow(x, y + 2, 22);
+      stem(x, y, y - 32 + bob);
+      const hx = x + rc, hy = y - 42 + bob, r = 15;
+      g.save(); g.translate(hx, hy); g.rotate(t * 0.4);
+      for (let i = 0; i < 12; i++) { g.save(); g.rotate(i * Math.PI / 6); ell(r + 6, 0, 8, 4.5, '#ffd23f', '#c98a00', 1.5); g.restore(); }
+      g.restore();
+      peaHead(hx, hy, r, '#8fd14f', '#2f6b1c');
+      break;
+    }
+    case 'firepea': {
+      shadow(x, y + 2, 22);
+      stem(x, y, y - 30 + bob);
+      const hx = x - 2 + rc, hy = y - 40 + bob;
+      flame(hx - 9, hy - 6, 15, t);
+      peaHead(hx, hy, 16, '#ff7d36', '#8a2c0a');
+      break;
+    }
+    case 'snowrepeater': {
+      shadow(x, y + 2, 22);
+      stem(x, y, y - 30 + bob);
+      const hx = x - 2 + rc, hy = y - 40 + bob;
+      poly([hx - 14, hy - 8, hx - 22, hy - 30, hx - 6, hy - 14], '#e8f7ff', '#1f5f86', 2);
+      poly([hx - 6, hy - 14, hx - 8, hy - 36, hx + 4, hy - 15], '#e8f7ff', '#1f5f86', 2);
+      peaHead(hx, hy, 16, '#7fd3ff', '#1f5f86');
+      ell(hx - 4, hy + 6, 4, 3, 'rgba(255,255,255,.6)');
+      break;
+    }
+    case 'peanut': {
+      shadow(x, y + 2, 26);
+      nut(x, y, ratio);
+      g.beginPath(); g.rect(x + 15 + rc, y - 39, 18, 14);
+      g.fillStyle = '#8fd14f'; g.fill(); g.strokeStyle = '#2f6b1c'; g.lineWidth = 2.5; g.stroke();
+      ell(x + 33 + rc, y - 32, 4.5, 8, '#8fd14f', '#2f6b1c');
+      ell(x + 34 + rc, y - 32, 2.3, 5, '#1f3d12');
+      ell(x + 3, y - 63, 9, 4, '#5fa832', '#2f6b1c', 1.5);
+      break;
+    }
+    case 'cherrynut': {
+      const j = ratio < 0.33 ? Math.sin(t * 40) * 1.5 : 0;
+      shadow(x, y + 2, 26);
+      g.translate(j, 0);
+      nut(x, y, ratio);
+      cherries(x, y - 60);
+      break;
+    }
+    case 'icemine': {
+      const armed = !p || p.armed;
+      if (!armed) {
+        const k = Math.min(1, p.age / 12);
+        ell(x, y - 1, 20, 7, '#7a5530', '#4a3218', 2);
+        ell(x, y - 3 - k * 5, 12, 4 + k * 4, '#c6e6f6', '#3c6e8f', 2);
+        ell(x, y + 1, 22, 5, '#7a5530');
+      } else {
+        shadow(x, y + 2, 26);
+        line(x, y - 28, x + 3, y - 40, '#3c6e8f', 2.5);
+        const on = Math.sin(t * 6) > 0;
+        if (on) ell(x + 3, y - 42, 9, 9, 'rgba(79,209,255,.3)');
+        ell(x + 3, y - 42, 4.5, 4.5, on ? '#4fd1ff' : '#1f6f8f', '#1d3b52', 1.5);
+        ell(x, y - 13, 24, 17, '#c6e6f6', '#3c6e8f', 2.5);
+        ell(x - 12, y - 20, 4, 2.5, '#fff');
+        ell(x + 13, y - 8, 3, 2, '#fff');
+        ell(x - 7, y - 16, 3.5, 4.5, '#fff', '#1d3b52', 1);
+        ell(x + 7, y - 16, 3.5, 4.5, '#fff', '#1d3b52', 1);
+        ell(x - 6, y - 15, 1.8, 2.4, '#111');
+        ell(x + 8, y - 15, 1.8, 2.4, '#111');
+        ell(x, y, 27, 6, '#7a5530');
+      }
+      break;
+    }
+    case 'chompsquash': {
+      let ox = 0, oy = 0, sq = 1;
+      if (p && p.atk) {
+        const k = Math.min(1, p.atk.t / 0.4);
+        if (p.atk.t < 0.4) { ox = (p.atk.tx - x) * k; oy = -Math.sin(k * Math.PI) * 70; }
+        else { const k2 = clamp01((p.atk.t - 0.4) / 0.4); ox = (p.atk.tx - x) * (1 - k2); oy = -Math.sin(k2 * Math.PI) * 30; sq = p.atk.t < 0.5 ? 0.7 : 1; }
+      }
+      const chew = p && p.chew > 0;
+      shadow(x + ox, y + 2, 26);
+      g.translate(x + ox, y + oy); g.scale(1 / sq * (sq < 1 ? 1.2 : 1), sq); g.translate(-(x + ox), -(y + oy));
+      const cx = x + ox, cy = y + oy;
+      const cheek = chew ? Math.abs(Math.sin(t * 8)) * 3 : 0;
+      rr(cx - 24 - cheek, cy - 58, 48 + cheek * 2, 58, 18);
+      g.fillStyle = '#9ccf3c'; g.fill(); g.strokeStyle = '#3f6b12'; g.lineWidth = 3; g.stroke();
+      line(cx - 8, cy - 56, cx - 10, cy - 4, 'rgba(63,107,18,.35)', 2);
+      line(cx + 8, cy - 56, cx + 10, cy - 4, 'rgba(63,107,18,.35)', 2);
+      ell(cx + 1, cy - 62, 6, 4, '#5fa832', '#2f6b1c', 1.5);
+      if (chew) {
+        line(cx - 2, cy - 22, cx + 22, cy - 22, '#5b1d6b', 3);
+        ell(cx - 10, cy - 40, 5, 1.5, '#2b1d10');
+        ell(cx + 8, cy - 40, 5, 1.5, '#2b1d10');
+      } else {
+        line(cx - 16, cy - 48, cx - 4, cy - 43, '#2b1d10', 3);
+        line(cx + 16, cy - 48, cx + 4, cy - 43, '#2b1d10', 3);
+        ell(cx - 9, cy - 38, 4, 4.5, '#fff', '#2b1d10', 1.2);
+        ell(cx + 9, cy - 38, 4, 4.5, '#fff', '#2b1d10', 1.2);
+        ell(cx - 7, cy - 37, 1.8, 2.2, '#111');
+        ell(cx + 11, cy - 37, 1.8, 2.2, '#111');
+        ell(cx + 6, cy - 18, 14, 8, '#8e2ea6', '#4a1157', 2);
+        ell(cx + 6, cy - 17, 10, 4, '#3a0d47');
+        for (let i = 0; i < 4; i++) poly([cx - 4 + i * 6, cy - 21, cx - 1 + i * 6, cy - 15, cx + 2 + i * 6, cy - 21], '#fff');
+      }
+      break;
+    }
+    case 'cherrypepper': {
+      const fuse = p ? 1 - p.fuse : 0;
+      const sc = 1 + fuse * 0.35, jx = p ? Math.sin(t * 50) * fuse * 3 : 0;
+      shadow(x, y + 2, 20);
+      g.translate(x + jx, y); g.scale(sc, sc); g.translate(-x, -y);
+      g.beginPath();
+      g.moveTo(x - 4, y - 56);
+      g.bezierCurveTo(x + 20, y - 54, x + 18, y - 20, x + 4, y - 2);
+      g.bezierCurveTo(x - 4, y + 4, x - 18, y - 16, x - 16, y - 34);
+      g.bezierCurveTo(x - 15, y - 48, x - 12, y - 56, x - 4, y - 56);
+      g.fillStyle = fuse > 0.5 && Math.sin(t * 30) > 0 ? '#ff5a3a' : '#d81f2a'; g.fill();
+      g.strokeStyle = '#6e0c12'; g.lineWidth = 2.5; g.stroke();
+      ell(x - 8, y - 42, 3, 7, 'rgba(255,255,255,.35)');
+      line(x - 9, y - 32, x - 2, y - 28, '#2b1d10', 2.5);
+      line(x + 9, y - 32, x + 2, y - 28, '#2b1d10', 2.5);
+      ell(x - 5, y - 24, 2.4, 3, '#111'); ell(x + 5, y - 24, 2.4, 3, '#111');
+      g.beginPath(); g.arc(x, y - 12, 5, 1.15 * Math.PI, 1.85 * Math.PI); g.strokeStyle = '#2b1d10'; g.lineWidth = 2; g.stroke();
+      cherries(x - 2, y - 70);
+      break;
+    }
+  }
+  g.restore();
+}
+
+function drawZombie(z, ox, oy) {
+  const x = ox != null ? ox : z.x, y = oy != null ? oy : cellCY(z.row) + 32;
+  const burnt = z.burnt && z.dead;
+  const moving = !z.eating && z.frozen <= 0 && !z.dead;
+  const fast = z.type === 'football' || (z.type === 'pole' && z.pole);
+  const ph = moving ? Math.sin(z.anim * (fast ? 9 : 5)) : 0;
+  g.save();
+  if (z.dead) {
+    if (burnt) g.globalAlpha = 1 - clamp01((z.deadT - 0.55) / 0.25);
+    else {
+      const k = Math.min(1, z.deadT / 0.45);
+      g.globalAlpha = 1 - clamp01((z.deadT - 0.6) / 0.4);
+      g.translate(x + 10, y); g.rotate(k * 1.45); g.translate(-x - 10, -y);
+    }
+  } else shadow(x, y + 2, 22);
+  if (z.jumping > 0) g.translate(0, -Math.sin((1 - z.jumping / 0.8) * Math.PI) * 55);
+  const skin = burnt ? '#2a2a2a' : z.flash > 0 ? '#d6ead0' : z.slow > 0 ? '#9cc6d6' : '#a6bf9b';
+  const coat = burnt ? '#1c1c1c' : z.type === 'football' ? '#b3262e' : '#6b6f5e';
+  const legC = burnt ? '#151515' : '#3b3a35';
+  const edge = burnt ? '#000' : '#2e3029';
+  // 腿
+  line(x - 2, y - 30, x - 8 + ph * 7, y - 2, legC, 7);
+  line(x + 3, y - 30, x + 8 - ph * 7, y - 2, legC, 7);
+  ell(x - 11 + ph * 7, y, 7, 3.5, '#24231f');
+  ell(x + 5 - ph * 7, y, 7, 3.5, '#24231f');
+  // 旗子
+  if (z.type === 'flag') {
+    line(x + 14, y - 40, x + 18, y - 116, '#6b4a2b', 3);
+    const wv = Math.sin(z.anim * 6) * 3;
+    g.beginPath(); g.moveTo(x + 18, y - 116);
+    g.quadraticCurveTo(x + 30, y - 116 + wv, x + 44, y - 114);
+    g.lineTo(x + 44, y - 94);
+    g.quadraticCurveTo(x + 30, y - 96 + wv, x + 18, y - 96);
+    g.closePath(); g.fillStyle = burnt ? '#222' : '#c8202c'; g.fill(); g.strokeStyle = '#5c0b10'; g.lineWidth = 2; g.stroke();
+    ell(x + 31, y - 105, 4.5, 4.5, burnt ? '#333' : '#fff3d1');
+  }
+  // 后臂
+  line(x + 9, y - 60, x + 15, y - 37 + ph * 3, coat, 6);
+  // 身体
+  poly([x - 14, y - 28, x + 14, y - 28, x + 12, y - 67, x - 12, y - 67], coat, edge);
+  if (z.type === 'football') {
+    ell(x - 12, y - 64, 10, 7, burnt ? '#222' : '#8a1820', edge, 2);
+    ell(x + 12, y - 64, 10, 7, burnt ? '#222' : '#8a1820', edge, 2);
+    g.font = `16px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = burnt ? '#333' : '#fff3d1';
+    g.fillText('12', x, y - 44);
+  } else if (!burnt) {
+    poly([x - 6, y - 67, x + 6, y - 67, x, y - 56], '#efe9d8');
+    poly([x - 2, y - 62, x + 2, y - 62, x + 3, y - 44, x, y - 40, x - 3, y - 44], '#b3261e');
+  }
+  // 撑杆
+  if (z.pole && z.jumping <= 0) line(x + 24, y - 54, x - 46, y - 40, '#8a5a2e', 4);
+  if (z.jumping > 0) line(x - 30, y + 30, x - 4, y - 70, '#8a5a2e', 4);
+  // 头
+  if (!z.headOff) {
+    const hx = x - 4, hy = y - 81;
+    ell(hx, hy, 15, 15, skin, burnt ? '#000' : '#4f5e47');
+    if (!burnt) {
+      ell(hx - 6, hy - 3, 4.5, 5.5, '#fff', '#4f5e47', 1);
+      ell(hx + 5, hy - 4, 4, 5, '#fff', '#4f5e47', 1);
+      ell(hx - 7, hy - 2, 1.8, 1.8, '#222');
+      ell(hx + 4, hy - 3, 1.6, 1.6, '#222');
+      const mouth = z.eating && z.frozen <= 0 ? 2 + Math.abs(Math.sin(z.anim * 10)) * 4 : 1.6;
+      ell(hx - 6, hy + 8, 5, mouth, '#3a1b1b');
+    } else {
+      ell(hx - 6, hy - 3, 3, 3, '#fff'); ell(hx + 5, hy - 4, 3, 3, '#fff');
+    }
+    drawArmor(z, hx, hy, burnt);
+  }
+  // 前臂
+  if (!z.armOff) {
+    const reach = z.eating ? Math.sin(z.anim * 10) * 3 : ph * 3;
+    line(x - 6, y - 60, x - 27, y - 56 + reach, coat, 6);
+    ell(x - 29, y - 56 + reach, 4, 4, skin);
+  } else line(x - 6, y - 60, x - 12, y - 56, coat, 6);
+  if (z.frozen > 0 && !z.dead) {
+    rr(x - 26, y - 104, 52, 106, 8);
+    g.fillStyle = 'rgba(150,215,255,.42)'; g.fill();
+    g.strokeStyle = 'rgba(255,255,255,.75)'; g.lineWidth = 2; g.stroke();
+    line(x - 18, y - 90, x - 8, y - 96, 'rgba(255,255,255,.8)', 2);
+  }
+  g.restore();
+}
+function drawArmor(z, hx, hy, burnt) {
+  if (z.armor <= 0) return;
+  const dmg = z.maxArmor ? z.armor / z.maxArmor : 1;
+  if (z.armorType === 'cone') {
+    poly([hx - 15, hy - 7, hx + 14, hy - 7, hx + 2, hy - 42], burnt ? '#222' : '#f08a24', burnt ? '#000' : '#8a4510');
+    line(hx - 8, hy - 20, hx + 9, hy - 20, 'rgba(255,255,255,.22)', 3);
+    if (dmg < 0.5) line(hx - 2, hy - 34, hx + 4, hy - 24, '#5a2a05', 2);
+  } else if (z.armorType === 'bucket') {
+    poly([hx - 16, hy - 4, hx + 16, hy - 4, hx + 12, hy - 33, hx - 12, hy - 33], burnt ? '#222' : '#a9b2b7', burnt ? '#000' : '#4b5257');
+    line(hx - 15, hy - 12, hx + 15, hy - 12, '#4b5257', 2);
+    if (dmg < 0.5) { line(hx - 6, hy - 30, hx - 1, hy - 20, '#4b5257', 2); line(hx + 6, hy - 26, hx + 9, hy - 18, '#4b5257', 2); }
+  } else if (z.armorType === 'football') {
+    g.beginPath(); g.arc(hx, hy - 1, 17, Math.PI * 1.02, Math.PI * 2.02); g.closePath();
+    g.fillStyle = burnt ? '#222' : '#c8202c'; g.fill(); g.strokeStyle = burnt ? '#000' : '#5c0b10'; g.lineWidth = 2.5; g.stroke();
+    line(hx - 17, hy + 2, hx - 17, hy + 12, '#9aa3a8', 2.5);
+    line(hx - 17, hy + 6, hx - 6, hy + 6, '#9aa3a8', 2.5);
+    poly([hx - 9, hy - 16, hx + 9, hy - 16, hx + 7, hy - 30, hx - 7, hy - 30], burnt ? '#222' : '#a9b2b7', burnt ? '#000' : '#4b5257', 2);
+    if (dmg < 0.5) line(hx - 4, hy - 12, hx + 6, hy - 4, '#3a0507', 2);
+  }
+}
+
+function drawSun(x, y, t, a = 1) {
+  g.save(); g.globalAlpha *= a;
+  ell(x, y, 27, 27, 'rgba(255,210,63,.28)');
+  g.save(); g.translate(x, y); g.rotate(t * 0.8);
+  g.fillStyle = '#ffc21a';
+  for (let i = 0; i < 8; i++) {
+    g.rotate(Math.PI / 4);
+    g.beginPath(); g.moveTo(-5, -15); g.lineTo(5, -15); g.lineTo(0, -25); g.closePath(); g.fill();
+  }
+  g.restore();
+  ell(x, y, 15, 15, '#ffd23f', '#e09b00', 2);
+  ell(x - 5, y - 5, 5, 4, 'rgba(255,255,255,.6)');
+  g.restore();
+}
+
+function drawPart(p) {
+  const a = 1 - clamp01((p.t - p.life * 0.6) / (p.life * 0.4));
+  g.save(); g.globalAlpha = a; g.translate(p.x, p.y); g.rotate(p.rot);
+  switch (p.shape) {
+    case 'circle': ell(0, 0, p.size, p.size, p.color); break;
+    case 'rect': g.fillStyle = p.color; g.fillRect(-p.size, -p.size * 0.6, p.size * 2, p.size * 1.2); break;
+    case 'head':
+      ell(0, 0, 15, 15, '#a6bf9b', '#4f5e47');
+      ell(-6, -3, 4.5, 5.5, '#fff', '#4f5e47', 1); ell(-7, -2, 1.8, 1.8, '#222');
+      line(3, -6, 8, -1, '#4f5e47', 1.5); line(8, -6, 3, -1, '#4f5e47', 1.5);
+      break;
+    case 'cone': poly([-15, 16, 14, 16, 2, -18], '#f08a24', '#8a4510'); break;
+    case 'bucket': poly([-16, 14, 16, 14, 12, -14, -12, -14], '#a9b2b7', '#4b5257'); break;
+    case 'football':
+      g.beginPath(); g.arc(0, 8, 17, Math.PI * 1.02, Math.PI * 2.02); g.closePath();
+      g.fillStyle = '#c8202c'; g.fill(); g.strokeStyle = '#5c0b10'; g.lineWidth = 2.5; g.stroke();
+      break;
+    case 'arm': line(0, 0, -18, 4, '#6b6f5e', 6); ell(-20, 4, 4, 4, '#a6bf9b'); break;
+    case 'pole': line(-30, 0, 30, 0, '#8a5a2e', 4); break;
+  }
+  g.restore();
+}
+
+function drawLawn() {
+  g.fillStyle = '#4a3320'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#c7a873'; g.fillRect(0, TOP, LX, CH * ROWS);
+  for (let i = 0; i < ROWS * 3; i++) line(0, TOP + i * 30 + 15, LX - 4, TOP + i * 30 + 15, 'rgba(120,90,50,.35)', 2);
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    g.fillStyle = (r + c) % 2 ? '#79c043' : '#6cb438';
+    g.fillRect(LX + c * CW, TOP + r * CH, CW, CH);
+  }
+  // 草叶点缀（固定位置）
+  g.fillStyle = 'rgba(40,100,20,.25)';
+  for (let i = 0; i < 60; i++) {
+    const gx = LX + ((i * 137) % (CW * COLS)), gy = TOP + ((i * 211) % (CH * ROWS));
+    g.fillRect(gx, gy, 2, 6); g.fillRect(gx + 4, gy + 2, 2, 5);
+  }
+  const sx = LX + CW * COLS;
+  g.fillStyle = '#7d7f78'; g.fillRect(sx, TOP, W - sx, CH * ROWS);
+  g.fillStyle = '#9a9c94'; g.fillRect(sx, TOP, 8, CH * ROWS);
+  for (let i = 0; i < 6; i++) { g.fillStyle = '#e8e3c8'; g.fillRect(sx + 44, TOP + 12 + i * 78, 6, 40); }
+  g.fillStyle = '#3e2611'; g.fillRect(0, H - 10, W, 10);
+}
+
+function drawHUD() {
+  g.fillStyle = '#4a3320'; g.fillRect(0, 0, W, TOP);
+  g.fillStyle = 'rgba(255,255,255,.1)'; g.fillRect(0, TOP - 3, W, 3);
+  g.font = `20px ${FONT}`; g.textBaseline = 'middle'; g.textAlign = 'left';
+  g.fillStyle = '#fff3d1';
+  g.fillText(CFG.waves === Infinity ? `无尽 · 第 ${Math.max(1, S.waveNum)} 波` : CFG.label, 14, TOP / 2 + 1);
+  const bx = W - 240, bw = 220, by = 13, bh = 14;
+  if (CFG.waves !== Infinity) {
+    rr(bx, by, bw, bh, 7); g.fillStyle = '#2a1c10'; g.fill();
+    const k = clamp01(S.t / S.endT);
+    if (k > 0) { rr(bx + bw * (1 - k), by, bw * k, bh, 7); g.fillStyle = '#7fd14a'; g.fill(); }
+    S.waveTimes.forEach((wt, i) => {
+      if (!isFlag(i + 1)) return;
+      const fx = bx + bw * (1 - wt / S.endT);
+      line(fx, by - 4, fx, by + bh + 1, '#efe9d8', 2);
+      poly([fx, by - 4, fx + 10, by, fx, by + 4], S.t >= wt ? '#e3263a' : '#b98a5a');
+    });
+    ell(bx + bw * (1 - k), by + bh / 2, 9, 9, '#a6bf9b', '#2e3029', 2);
+  } else {
+    g.textAlign = 'right'; g.fillStyle = '#ffd23f';
+    g.fillText(`已消灭 ${S.kills}`, W - 20, TOP / 2 + 1);
+  }
+  g.font = `15px ${FONT}`; g.textAlign = 'center'; g.fillStyle = '#e8d6a8';
+  let hint = '点卡片选植物，再点草坪种下';
+  if (S.selected === 'shovel') hint = '铲子：点一株植物把它移走';
+  else if (S.selected) hint = `${PLANTS[S.selected].name}：${PLANTS[S.selected].desc}`;
+  if (!S.demo) g.fillText(hint, (210 + bx - 14) / 2, TOP / 2 + 1);
+}
+
+function bigText(text, x, y, size, fill, stroke, scale = 1) {
+  g.save(); g.translate(x, y); g.scale(scale, scale);
+  g.font = `${size}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.lineWidth = size / 6; g.lineJoin = 'round'; g.strokeStyle = stroke; g.strokeText(text, 0, 0);
+  g.fillStyle = fill; g.fillText(text, 0, 0);
+  g.restore();
+}
+
+function drawFx(f) {
+  const k = f.t / f.dur;
+  if (f.type === 'boom') {
+    ell(f.x, f.y, 40 + k * 120, 30 + k * 85, `rgba(255,120,30,${0.75 * (1 - k)})`);
+    ell(f.x, f.y, 20 + k * 75, 16 + k * 55, `rgba(255,230,120,${0.9 * (1 - k)})`);
+    ell(f.x, f.y, 50 + k * 160, 35 + k * 110, null, `rgba(255,255,255,${0.8 * (1 - k)})`, 4);
+    if (k < 0.6) bigText('嘭！', f.x, f.y - 20, 40, '#ffe36b', '#4a1405', 1 + (1 - k) * 0.3);
+  } else if (f.type === 'ice') {
+    ell(f.x, f.y, 30 + k * 150, 20 + k * 95, `rgba(160,220,255,${0.7 * (1 - k)})`, `rgba(255,255,255,${1 - k})`, 3);
+    for (let i = 0; i < 8; i++) {
+      const a = i * Math.PI / 4, d = 20 + k * 90;
+      line(f.x + Math.cos(a) * d * 0.5, f.y + Math.sin(a) * d * 0.35, f.x + Math.cos(a) * d, f.y + Math.sin(a) * d * 0.7, `rgba(255,255,255,${1 - k})`, 3);
+    }
+  } else if (f.type === 'fireline') {
+    const a = 1 - k;
+    g.fillStyle = `rgba(255,90,20,${0.35 * a})`; g.fillRect(LX, f.y - CH / 2, W - LX, CH);
+    for (let i = 0; i < 12; i++) {
+      const fx = LX + 30 + i * 66, h = 1.2 + Math.sin(f.t * 20 + i) * 0.3;
+      g.save(); g.globalAlpha = a; flame(fx, f.y + 36, 26 * h, f.t + i); g.restore();
+    }
+  } else if (f.type === 'plant') {
+    for (let i = 0; i < 5; i++) ell(f.x - 24 + i * 12, f.y - k * 10, 7 * (1 - k), 5 * (1 - k), `rgba(122,85,48,${1 - k})`);
+  }
+}
+
+function draw() {
+  g = ctx;
+  const t = S.t + S.intro;
+  g.save();
+  if (S.shake > 0) g.translate(rnd(-S.shake, S.shake) * 0.5, rnd(-S.shake, S.shake) * 0.5);
+  drawLawn();
+  if (S.hover && S.selected && !S.over) {
+    const { r, c } = S.hover;
+    const occupied = !!S.plants[r][c];
+    if (S.selected === 'shovel') {
+      if (occupied) { g.fillStyle = 'rgba(255,80,60,.25)'; g.fillRect(LX + c * CW, TOP + r * CH, CW, CH); }
+    } else {
+      g.fillStyle = 'rgba(255,255,255,.12)';
+      g.fillRect(LX, TOP + r * CH, CW * COLS, CH);
+      g.fillStyle = occupied ? 'rgba(255,80,60,.22)' : 'rgba(255,255,255,.22)';
+      g.fillRect(LX + c * CW, TOP + r * CH, CW, CH);
+      if (!occupied) { g.save(); g.globalAlpha = 0.45; drawPlant(S.selected, cellCX(c), cellCY(r) + 28, t, null); g.restore(); }
+    }
+  }
+  S.mowers.forEach((m, r) => {
+    if (m.state === 'done') return;
+    const y = cellCY(r) + 16, jig = m.state === 'go' ? rnd(-1, 1) : 0;
+    rr(m.x, y - 16 + jig, 36, 18, 4); g.fillStyle = '#d0332b'; g.fill(); g.strokeStyle = '#5c1410'; g.lineWidth = 2; g.stroke();
+    line(m.x + 4, y - 16 + jig, m.x - 6, y - 32, '#3b3a35', 3);
+    ell(m.x + 8, y + 4, 6, 6, '#222'); ell(m.x + 28, y + 4, 6, 6, '#222');
+  });
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const p = S.plants[r][c];
+      if (p && !p.atk) drawPlant(p.type, cellCX(c), cellCY(r) + 28, t, p);
+    }
+    S.zombies.filter(z => z.row === r).sort((a, b) => a.x - b.x).forEach(z => drawZombie(z));
+    for (let c = 0; c < COLS; c++) {
+      const p = S.plants[r][c];
+      if (p && p.atk) drawPlant(p.type, cellCX(c), cellCY(r) + 28, t, p);
+    }
+  }
+  for (const p of S.peas) {
+    if (p.kind === 'fire') {
+      ell(p.x - 11, p.y, 11, 5, 'rgba(255,177,43,.5)');
+      ell(p.x, p.y, 8, 8, '#ff8a2b', '#b8360a', 1.5);
+      ell(p.x + 1, p.y - 1, 4, 4, '#ffe36b');
+    } else if (p.kind === 'ice') {
+      ell(p.x - 9, p.y, 9, 4, 'rgba(191,233,255,.6)');
+      ell(p.x, p.y, 7, 7, '#9fe2ff', '#1f5f86', 1.5);
+      ell(p.x - 2, p.y - 2, 2.5, 2, '#fff');
+    } else {
+      ell(p.x, p.y, 7, 7, '#8fe04a', '#2f6b1c', 1.5);
+      ell(p.x - 2, p.y - 2, 2.5, 2, 'rgba(255,255,255,.7)');
+    }
+  }
+  for (const f of S.fx) drawFx(f);
+  for (const p of S.parts) drawPart(p);
+  for (const s of S.suns) {
+    if (s.fly) {
+      const k = Math.min(1, s.flyT / 0.5), e = 1 - (1 - k) * (1 - k);
+      drawSun(s.sx + (20 - s.sx) * e, s.sy + (20 - s.sy) * e, t, 1 - k * 0.6);
+    } else drawSun(s.x, s.y, t, s.life < 2 ? 0.4 + 0.6 * Math.abs(Math.sin(s.life * 8)) : 1);
+  }
+  for (const tx of S.texts) {
+    const k = tx.t;
+    g.save(); g.globalAlpha = 1 - clamp01((k - 0.6) / 0.4);
+    bigText(tx.text, tx.x, tx.y - k * 30, tx.size, tx.color, '#3e2611', k < 0.15 ? 0.6 + k / 0.15 * 0.4 : 1);
+    g.restore();
+  }
+  g.restore();
+  if (!S.demo) drawHUD();
+  if (S.flashA > 0) { g.fillStyle = `rgba(255,250,230,${S.flashA})`; g.fillRect(0, 0, W, H); }
+  if (!S.demo && S.intro < INTRO) {
+    const step = Math.min(2, Math.floor(S.intro / (INTRO / 3)));
+    const local = (S.intro % (INTRO / 3)) / (INTRO / 3);
+    const txt = ['准备……', '安放……', '植物！'][step];
+    bigText(txt, W / 2, H / 2, step === 2 ? 64 : 48, step === 2 ? '#ff4b3a' : '#fff3d1', '#3a0d0a', 0.7 + Math.min(1, local * 4) * 0.3);
+  }
+  if (S.banner) {
+    const k = Math.min(1, S.banner.t / 0.25);
+    bigText(S.banner.text, W / 2, H / 2, 46, '#ff4b3a', '#3a0d0a', 0.6 + 0.4 * k);
+  }
+}
+
+/* ================= 界面 ================= */
+const stage = document.getElementById('stage');
+const overlay = document.getElementById('overlay');
+const bankEl = document.getElementById('bank');
+const sunNum = document.getElementById('sunNum');
+const sunbox = document.getElementById('sunbox');
+const cardsEl = document.getElementById('cards');
+const shovelBtn = document.getElementById('shovel');
+const pauseBtn = document.getElementById('pauseBtn');
+const speedBtn = document.getElementById('speedBtn');
+const toastEl = document.getElementById('toast');
+let cardEls = {};
+
+// 在一个 100×100 的逻辑画布上画图标
+function drawIcon(canvas, kind, key, opt = {}) {
+  const c2 = canvas.getContext('2d');
+  const prev = g; g = c2;
+  const s = canvas.width / 100;
+  c2.setTransform(s, 0, 0, s, 0, 0);
+  c2.clearRect(0, 0, 100, 100);
+  if (kind === 'plant') {
+    g.translate(46, 90); g.scale(1.05, 1.05);
+    drawPlant(key, 0, 0, 0, null);
+  } else if (kind === 'zombie') {
+    g.translate(56, 97); g.scale(0.7, 0.7);
+    const d = ZDEF[key];
+    drawZombie({ type: key, armor: d.armor, maxArmor: d.armor, armorType: d.armorType, pole: !!d.pole, jumping: 0, frozen: 0, slow: 0, flash: 0, anim: 0, eating: false, dead: false }, 0, 0);
+  } else if (kind === 'sun') {
+    g.translate(50, 50); g.scale(1.6, 1.6); drawSun(0, 0, 0);
+  } else if (kind === 'shovel') {
+    line(30, 74, 64, 34, '#8a5a2e', 8);
+    line(22, 82, 36, 66, '#3b3a35', 9);
+    poly([58, 24, 84, 18, 80, 44, 64, 44], '#b8c0c4', '#4b5257', 3);
+  }
+  if (opt.locked) {
+    c2.setTransform(1, 0, 0, 1, 0, 0);
+    c2.globalCompositeOperation = 'source-atop';
+    c2.fillStyle = '#4a3a24'; c2.fillRect(0, 0, canvas.width, canvas.height);
+    c2.globalCompositeOperation = 'source-over';
+  }
+  g = prev;
+}
+function iconCanvas(kind, key, px, opt) {
+  const c = document.createElement('canvas');
+  c.width = c.height = Math.round(px * Math.min(3, window.devicePixelRatio || 1));
+  drawIcon(c, kind, key, opt);
+  return c;
+}
+drawIcon(document.getElementById('sunIcon'), 'sun');
+drawIcon(shovelBtn.querySelector('canvas'), 'shovel');
+
+function buildCards(deck) {
+  cardsEl.innerHTML = '';
+  cardEls = {};
+  deck.forEach((k, i) => {
+    const b = document.createElement('button');
+    b.className = 'card'; b.id = 'card-' + k;
+    b.setAttribute('aria-label', `${PLANTS[k].name}，${PLANTS[k].cost} 阳光（快捷键 ${i + 1}）`);
+    b.appendChild(iconCanvas('plant', k, 48));
+    b.insertAdjacentHTML('beforeend', `<span class="cost">${PLANTS[k].cost}</span><span class="mask"></span>`);
+    b.addEventListener('click', () => selectCard(k));
+    cardsEl.appendChild(b);
+    cardEls[k] = { b, mask: b.querySelector('.mask') };
+  });
+}
+
+function nope() {
+  sfx('cant');
+  sunbox.classList.add('nope');
+  setTimeout(() => sunbox.classList.remove('nope'), 350);
+}
+function playable() { return running && !paused && !S.over && !S.demo && S.intro >= INTRO; }
+function selectCard(k) {
+  if (!playable()) return;
+  if (S.selected === k) { S.selected = null; return; }
+  if (S.cd[k] > 0) { sfx('cant'); return; }
+  if (S.sun < PLANTS[k].cost) { nope(); return; }
+  S.selected = k; sfx('select');
+}
+shovelBtn.addEventListener('click', () => {
+  if (!playable()) return;
+  S.selected = S.selected === 'shovel' ? null : 'shovel'; sfx('select');
+});
+speedBtn.addEventListener('click', () => { speed = speed === 1 ? 2 : 1; speedBtn.textContent = speed + '×'; });
+pauseBtn.addEventListener('click', () => { if (running && !S.over && !S.demo) setPaused(!paused); });
+
+let lastUI = {};
+function updateUI() {
+  if (S.demo) return;
+  if (lastUI.sun !== S.sun) { sunNum.textContent = S.sun; lastUI.sun = S.sun; }
+  for (const k of S.deck) {
+    const { b, mask } = cardEls[k];
+    b.classList.toggle('off', S.cd[k] > 0 || S.sun < PLANTS[k].cost);
+    b.classList.toggle('sel', S.selected === k);
+    mask.style.height = (S.cd[k] / PLANTS[k].cd * 100).toFixed(1) + '%';
+  }
+  shovelBtn.classList.toggle('sel', S.selected === 'shovel');
+}
+
+let toastTimer;
+function toast(text) {
+  toastEl.textContent = text;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2600);
+}
+function unlockAch(id) {
+  if (save.ach[id]) return;
+  save.ach[id] = true; persist();
+  const a = ACH.find(a => a.id === id);
+  toast(`获得成就：${a.name}`);
+  sfx('ach');
+}
+
+/* ---------- 浮层通用 ---------- */
+function el(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'class') e.className = v;
+    else if (k === 'html') e.innerHTML = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (v === true) e.setAttribute(k, '');
+    else if (v !== false && v != null) e.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) if (kid != null) e.append(kid);
+  return e;
+}
+function btn(label, fn, cls = '') { return el('button', { class: 'btn ' + cls, onclick: () => { sfx('select'); fn(); } }, label); }
+function openOverlay(node, soft = false) {
+  overlay.innerHTML = '';
+  overlay.className = soft ? 'soft' : '';
+  overlay.append(node);
+  overlay.hidden = false;
+  const f = overlay.querySelector('button:not(:disabled)');
+  if (f) f.focus({ preventScroll: true });
+}
+function closeOverlay() { overlay.hidden = true; overlay.innerHTML = ''; }
+function panel(cls, ...kids) { return el('div', { class: 'panel ' + cls }, ...kids); }
+function head(title, back) {
+  return el('div', { class: 'phead' }, el('h1', {}, title), back ? btn('返回', back, 'alt small') : null);
+}
+
+/* ---------- 主菜单 ---------- */
+function demoScene() {
+  const s = newState(makeCfg({ waves: 1, label: '' }), []);
+  s.demo = true; s.intro = INTRO;
+  const put = (r, c, k) => { const p = makePlant(k); p.age = 5; p.armed = true; s.plants[r][c] = p; };
+  put(0, 0, 'peaflower'); put(0, 1, 'snowrepeater'); put(1, 0, 'peaflower'); put(1, 1, 'firepea'); put(1, 3, 'peanut');
+  put(2, 0, 'peaflower'); put(2, 2, 'cherrynut'); put(3, 1, 'firepea'); put(3, 4, 'chompsquash'); put(4, 0, 'peaflower'); put(4, 3, 'icemine');
+  const z = (type, row, x) => { const d = ZDEF[type]; s.zombies.push({ type, row, x, hp: d.hp, armor: d.armor, maxArmor: d.armor, armorType: d.armorType, speed: 0, pole: !!d.pole, jumping: 0, frozen: 0, slow: 0, flash: 0, anim: rnd(0, 5), eating: false, dead: false, deadT: 0 }); };
+  z('cone', 0, 640); z('flag', 1, 720); z('football', 2, 600); z('pole', 3, 760); z('bucket', 4, 680);
+  return s;
+}
+function showMenu() {
+  running = false; paused = false;
+  S = demoScene();
+  bankEl.hidden = true;
+  wantMusic = 'menu'; Sound.music('menu');
+  const done = save.cleared.length;
+  const seenN = ZOMBIE_ORDER.filter(k => save.seen[k]).length + unlockedPlants().length;
+  const achN = ACH.filter(a => save.ach[a.id]).length;
+  const nextLv = Math.min(LEVELS.length - 1, LEVELS.findIndex((L, i) => !save.cleared.includes(i)) === -1 ? LEVELS.length - 1 : LEVELS.findIndex((L, i) => !save.cleared.includes(i)));
+  const chalN = CHALLENGES.filter(c => save.chal[c.id]).length;
+  const sfxChip = el('button', { class: 'chip', onclick: () => { save.sfx = !save.sfx; persist(); sfxChip.textContent = '音效：' + (save.sfx ? '开' : '关'); sfx('select'); } }, '音效：' + (save.sfx ? '开' : '关'));
+  const musChip = el('button', { class: 'chip', onclick: () => { save.music = !save.music; persist(); musChip.textContent = '音乐：' + (save.music ? '开' : '关'); Sound.music(save.music ? 'menu' : null); } }, '音乐：' + (save.music ? '开' : '关'));
+  let armed = false;
+  const resetChip = el('button', { class: 'chip', onclick: () => {
+    if (!armed) { armed = true; resetChip.textContent = '再点一次确认重置'; resetChip.classList.add('warn'); return; }
+    const keep = { sfx: save.sfx, music: save.music };
+    save = Object.assign(defaultSave(), keep); persist(); toast('进度已重置'); showMenu();
+  } }, '重置进度');
+  openOverlay(el('div', { class: 'menu' },
+    el('div', { class: 'logo' }, el('span', { class: 'l1' }, '杂交草坪'), el('small', {}, '植物杂交 · 网页同人版')),
+    el('div', { class: 'mgrid' },
+      el('button', { class: 'mbtn main', onclick: () => { sfx('select'); showLevels(); } },
+        el('b', {}, '冒险模式'), el('span', {}, done >= LEVELS.length ? '全部通关！可以重玩任意关卡' : `已通关 ${done}/${LEVELS.length} · 下一关 ${LEVELS[nextLv].id} ${LEVELS[nextLv].name}`)),
+      el('button', { class: 'mbtn', onclick: () => { sfx('select'); showChallenges(); } }, el('b', {}, '挑战模式'), el('span', {}, `完成 ${chalN}/${CHALLENGES.length}`)),
+      el('button', { class: 'mbtn', onclick: () => { sfx('select'); startFlow(endlessCfg()); } }, el('b', {}, '无尽模式'), el('span', {}, save.bestWave ? `最高第 ${save.bestWave} 波` : '看你能撑几波')),
+      el('button', { class: 'mbtn', onclick: () => { sfx('select'); showAlmanac('plants'); } }, el('b', {}, '图鉴收藏'), el('span', {}, `图鉴 ${seenN}/${PLANT_ORDER.length + ZOMBIE_ORDER.length}`)),
+      el('button', { class: 'mbtn', onclick: () => { sfx('select'); showAlmanac('ach'); } }, el('b', {}, '成就'), el('span', {}, `已获得 ${achN}/${ACH.length} · 累计消灭 ${save.kills}`)),
+    ),
+    el('div', { class: 'mfoot' }, sfxChip, musChip, resetChip),
+  ), true);
+}
+
+function advCfg(i) {
+  const L = LEVELS[i];
+  return makeCfg({ mode: 'adventure', idx: i, label: `冒险 ${L.id}`, pool: L.pool, waves: L.waves, flags: L.flags, base: L.base, grow: L.grow, plants: unlockedPlants() });
+}
+function chalCfg(c) { return makeCfg(Object.assign({ mode: 'challenge', id: c.id, label: `挑战：${c.name}`, plants: PLANT_ORDER.slice() }, c.cfg)); }
+function endlessCfg() { return makeCfg({ mode: 'endless', label: '无尽模式', pool: ALL_POOL, waves: Infinity, flagEvery: 10, base: 1, grow: 0.6, startSun: 300, plants: PLANT_ORDER.slice() }); }
+
+function showLevels() {
+  const grid = el('div', { class: 'lvgrid' });
+  LEVELS.forEach((L, i) => {
+    const open = levelOpen(i), done = save.cleared.includes(i);
+    const b = el('button', { class: 'lv' + (open ? '' : ' locked') + (done ? ' done' : ''), disabled: !open, onclick: () => { sfx('select'); startFlow(advCfg(i)); } },
+      el('b', {}, L.id), el('span', { class: 'nm' }, open ? L.name : '未解锁'),
+      el('span', { class: 'rw' }, iconCanvas('plant', L.reward, 28, { locked: !done }), done ? `已获得${PLANTS[L.reward].name}` : '通关奖励：？'),
+      done ? el('span', { class: 'st' }, '已通关') : null);
+    grid.append(b);
+  });
+  openOverlay(panel('wide', head('冒险模式', showMenu), el('p', { class: 'sub' }, '每通关一关解锁一种新的杂交植物'), grid));
+}
+function showChallenges() {
+  const grid = el('div', { class: 'lvgrid' });
+  CHALLENGES.forEach(c => {
+    grid.append(el('button', { class: 'lv' + (save.chal[c.id] ? ' done' : ''), onclick: () => { sfx('select'); startFlow(chalCfg(c)); } },
+      el('b', {}, c.name), el('span', { class: 'nm', style: 'font-weight:400' }, c.desc),
+      save.chal[c.id] ? el('span', { class: 'st' }, '已完成') : null));
+  });
+  openOverlay(panel('wide', head('挑战模式', showMenu), el('p', { class: 'sub' }, '规则特殊的关卡，全部植物都可以用'), grid));
+}
+
+/* ---------- 选卡 ---------- */
+function startFlow(cfg) {
+  if (cfg.plants.length <= MAX_SLOTS) { startGame(cfg, cfg.plants.slice()); return; }
+  running = false;
+  bankEl.hidden = true;
+  let pick = save.pick.filter(k => cfg.plants.includes(k)).slice(0, MAX_SLOTS);
+  if (!pick.length) pick = cfg.plants.slice(0, MAX_SLOTS);
+  const slots = el('div', { class: 'slots' });
+  const tiles = el('div', { class: 'tiles' });
+  const go = btn('开始战斗', () => { save.pick = pick.slice(); persist(); startGame(cfg, pick.slice()); });
+  function render() {
+    slots.innerHTML = ''; tiles.innerHTML = '';
+    pick.forEach(k => slots.append(el('button', { class: 'tile', 'aria-label': `移出${PLANTS[k].name}`, onclick: () => { pick = pick.filter(x => x !== k); sfx('select'); render(); } },
+      iconCanvas('plant', k, 44), el('span', { class: 'tn' }, PLANTS[k].cost))));
+    for (let i = pick.length; i < MAX_SLOTS; i++) slots.append(el('div', { class: 'tile', style: 'opacity:.35;pointer-events:none' }, el('span', { class: 'tn', style: 'padding:16px 0' }, '空')));
+    cfg.plants.forEach(k => {
+      const on = pick.includes(k);
+      tiles.append(el('button', { class: 'tile' + (on ? ' used' : ''), 'aria-label': `${on ? '已选' : '选择'}${PLANTS[k].name}`, onclick: () => {
+        if (on) pick = pick.filter(x => x !== k);
+        else if (pick.length < MAX_SLOTS) pick.push(k);
+        else { sfx('cant'); return; }
+        sfx('select'); render();
+      } }, iconCanvas('plant', k, 52), el('span', { class: 'tn' }, PLANTS[k].name), el('span', { class: 'tn' }, `☀${PLANTS[k].cost}`)));
+    });
+    go.disabled = pick.length === 0;
+  }
+  render();
+  openOverlay(panel('wide', head('选择植物', showMenu), el('p', { class: 'sub' }, `${cfg.label} · 最多带 ${MAX_SLOTS} 种植物，点击加入或移出`), slots, tiles, el('div', { class: 'btns' }, go)));
+}
+
+/* ---------- 图鉴 ---------- */
+function showAlmanac(tab) {
+  const tabs = el('div', { class: 'tabs' },
+    ...[['plants', '植物'], ['zombies', '僵尸'], ['ach', '成就']].map(([k, n]) =>
+      el('button', { class: 'tab' + (tab === k ? ' on' : ''), onclick: () => { sfx('select'); showAlmanac(k); } }, n)));
+  let body;
+  if (tab === 'ach') {
+    body = el('div', { class: 'achs' }, ...ACH.map(a => el('div', { class: 'ach' + (save.ach[a.id] ? ' got' : '') },
+      el('div', { class: 'medal' }, save.ach[a.id] ? '★' : '？'), el('div', {}, el('b', {}, a.name), el('span', {}, a.desc)))));
+  } else {
+    const isP = tab === 'plants';
+    const keys = isP ? PLANT_ORDER : ZOMBIE_ORDER;
+    const known = k => isP ? plantUnlocked(k) : !!save.seen[k];
+    const detail = el('div', { class: 'detail' });
+    const grid = el('div', { class: 'tiles' });
+    const show = k => {
+      grid.querySelectorAll('.tile').forEach(t => t.classList.toggle('cur', t.dataset.k === k));
+      detail.innerHTML = '';
+      const ok = known(k);
+      const big = iconCanvas(isP ? 'plant' : 'zombie', k, 96, { locked: !ok });
+      if (isP) {
+        const d = PLANTS[k];
+        const lv = LEVELS.find(L => L.reward === k);
+        detail.append(el('div', { class: 'dtop' }, big, el('div', {}, el('h3', {}, d.name),
+          el('div', { class: 'tag' }, `☀ ${d.cost} · 冷却 ${d.cd} 秒`),
+          el('div', { class: 'tag' }, ok ? '冒险模式可用' : `通关冒险 ${lv.id} 解锁（挑战和无尽模式可先试用）`))),
+          el('div', { class: 'stat' }, d.stat), el('div', { class: 'lore' }, d.lore));
+      } else {
+        const d = ZDEF[k];
+        const spd = d.speed >= 25 ? '很快' : d.speed >= 18 ? '较快' : '慢';
+        detail.append(el('div', { class: 'dtop' }, big, el('div', {}, el('h3', {}, ok ? d.name : '？？？'),
+          el('div', { class: 'tag' }, ok ? (d.hybrid ? '杂交僵尸' : '普通僵尸') : '还没遇到'))),
+          ok ? el('div', { class: 'stat' }, `耐久 ${d.hp + d.armor}${d.armor ? `（护甲 ${d.armor}）` : ''} · 速度${spd}`) : null,
+          el('div', { class: 'lore' }, ok ? d.lore : '在关卡里遇到它之后，这里会记录它的资料。'));
+      }
+    };
+    keys.forEach(k => {
+      const ok = known(k);
+      grid.append(el('button', { class: 'tile', 'data-k': k, onclick: () => { sfx('select'); show(k); } },
+        iconCanvas(isP ? 'plant' : 'zombie', k, 52, { locked: !ok }),
+        el('span', { class: 'tn' }, ok || isP ? (isP ? PLANTS[k].name : ZDEF[k].name) : '？？？')));
+    });
+    body = el('div', { class: 'alm' }, grid, detail);
+    show(keys[0]);
+  }
+  openOverlay(panel('wide', head('图鉴收藏', showMenu), tabs, body));
+}
+
+/* ---------- 对局 ---------- */
+function setPaused(v) {
+  paused = v;
+  pauseBtn.textContent = v ? '继续' : '暂停';
+  if (v) openOverlay(panel('', el('h1', {}, '已暂停'), el('p', { class: 'sub' }, CFG.label),
+    el('div', { class: 'btns' }, btn('继续', () => setPaused(false)), btn('重新开始', () => startGame(CFG, S.deck), 'alt'), btn('主菜单', showMenu, 'alt'))));
+  else closeOverlay();
+}
+
+function gameOver(won) {
+  if (S.over) return;
+  S.over = true; S.selected = null;
+  Sound.music(null);
+  const body = [];
+  const btns = [];
+  if (CFG.mode === 'endless') {
+    const wave = S.waveNum;
+    const best = wave > save.bestWave;
+    if (best) save.bestWave = wave;
+    persist();
+    sfx('lose');
+    body.push(el('p', {}, `撑到了第 ${wave} 波，消灭 ${S.kills} 只僵尸。${best ? '刷新了最高纪录！' : `最高纪录：第 ${save.bestWave} 波。`}`));
+    btns.push(btn('再来一局', () => startGame(CFG, S.deck)), btn('主菜单', showMenu, 'alt'));
+    setTimeout(() => openOverlay(panel('', el('h1', {}, '草坪失守'), el('p', { class: 'sub' }, '无尽模式'), ...body, el('div', { class: 'btns' }, ...btns))), 700);
+    return;
+  }
+  if (!won) {
+    persist();
+    sfx('lose');
+    S.shake = 10;
+    setTimeout(() => openOverlay(panel('', el('h1', {}, '僵尸吃掉了你的脑子！'), el('p', { class: 'sub' }, CFG.label),
+      el('p', {}, `坚持了 ${Math.floor(S.t)} 秒，消灭 ${S.kills} 只僵尸。试试先多种几株豌豆向日葵攒阳光。`),
+      el('div', { class: 'btns' }, btn('再试一次', () => startGame(CFG, S.deck)), btn('主菜单', showMenu, 'alt')))), 900);
+    return;
+  }
+  sfx('win');
+  for (let i = 0; i < 40; i++) part({ x: rnd(LX, W), y: TOP - 10, vx: rnd(-40, 40), vy: rnd(0, 120), grav: 150, life: rnd(1.2, 2), size: rnd(3, 6), color: ['#ffd23f', '#e3263a', '#7fd14a', '#7fd3ff', '#fff3d1'][i % 5], shape: 'rect', vr: rnd(-8, 8) });
+  if (CFG.mode === 'adventure') {
+    const i = CFG.idx, first = !save.cleared.includes(i);
+    if (first) save.cleared.push(i);
+    if (i === 0) unlockAch('first');
+    if (i === LEVELS.length - 1) unlockAch('master');
+    if (!S.mowerUsed) unlockAch('nomower');
+    persist();
+    if (first) {
+      const k = LEVELS[i].reward;
+      body.push(el('div', { class: 'reward' }, iconCanvas('plant', k, 64), el('div', {}, el('b', {}, `获得新植物：${PLANTS[k].name}`), el('p', {}, PLANTS[k].desc))));
+      setTimeout(() => sfx('unlock'), 700);
+    }
+    body.unshift(el('p', {}, `守住了 ${CFG.waves} 波进攻，消灭 ${S.kills} 只僵尸${S.mowerUsed ? '' : '，小推车一辆没动'}。`));
+    if (i + 1 < LEVELS.length) btns.push(btn(`下一关 ${LEVELS[i + 1].id}`, () => startFlow(advCfg(i + 1))));
+    btns.push(btn('关卡列表', showLevels, 'alt'), btn('主菜单', showMenu, 'alt'));
+  } else {
+    save.chal[CFG.id] = true;
+    if (CHALLENGES.every(c => save.chal[c.id])) unlockAch('challenger');
+    persist();
+    body.push(el('p', {}, `挑战完成，消灭 ${S.kills} 只僵尸。`));
+    btns.push(btn('挑战列表', showChallenges), btn('主菜单', showMenu, 'alt'));
+  }
+  setTimeout(() => openOverlay(panel('', el('h1', {}, '守住了！'), el('p', { class: 'sub' }, CFG.label), ...body, el('div', { class: 'btns' }, ...btns))), 1200);
+}
+
+function startGame(cfg, deck) {
+  S = newState(cfg, deck);
+  buildCards(deck);
+  bankEl.hidden = false;
+  running = true; paused = false; lastUI = {};
+  pauseBtn.textContent = '暂停';
+  closeOverlay();
+  wantMusic = 'game'; Sound.music('game');
+  requestAnimationFrame(fit);
+}
+
+/* ---------- 输入 ---------- */
+function toWorld(e) {
+  const r = cv.getBoundingClientRect();
+  return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H };
+}
+function cellAt(x, y) {
+  const c = Math.floor((x - LX) / CW), r = Math.floor((y - TOP) / CH);
+  return c >= 0 && c < COLS && r >= 0 && r < ROWS ? { r, c } : null;
+}
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  if (!playable()) return;
+  const { x, y } = toWorld(e);
+  let best = null, bd = 44;
+  for (const s of S.suns) {
+    if (s.fly) continue;
+    const d = Math.hypot(s.x - x, s.y - y);
+    if (d < bd) { bd = d; best = s; }
+  }
+  if (best) {
+    best.fly = true; best.sx = best.x; best.sy = best.y;
+    S.sun += best.value;
+    floatText(best.x, best.y - 10, '+' + best.value, '#ffe36b', 22);
+    for (let i = 0; i < 6; i++) part({ x: best.x, y: best.y, vx: rnd(-120, 120), vy: rnd(-120, 120), grav: 0, life: 0.35, size: rnd(2, 4), color: '#fff3a0' });
+    sfx('sun');
+    return;
+  }
+  const cell = cellAt(x, y);
+  S.hover = e.pointerType === 'mouse' ? cell : null;
+  if (!cell || !S.selected) return;
+  const { r, c } = cell;
+  if (S.selected === 'shovel') {
+    if (S.plants[r][c]) {
+      S.plants[r][c] = null;
+      S.fx.push({ type: 'plant', x: cellCX(c), y: cellCY(r) + 28, t: 0, dur: 0.4 });
+      sfx('plant');
+    }
+    S.selected = null;
+    return;
+  }
+  const k = S.selected, d = PLANTS[k];
+  if (S.plants[r][c]) { sfx('cant'); return; }
+  if (S.sun < d.cost) { nope(); S.selected = null; return; }
+  S.plants[r][c] = makePlant(k);
+  S.sun -= d.cost;
+  S.cd[k] = d.cd;
+  S.selected = null;
+  S.fx.push({ type: 'plant', x: cellCX(c), y: cellCY(r) + 28, t: 0, dur: 0.4 });
+  for (let i = 0; i < 8; i++) part({ x: cellCX(c) + rnd(-20, 20), y: cellCY(r) + 30, vx: rnd(-90, 90), vy: rnd(-200, -80), life: 0.5, size: rnd(2, 4), color: i % 2 ? '#7a5530' : '#5b3a1c', ground: cellCY(r) + 34 });
+  sfx('plant');
+});
+cv.addEventListener('pointermove', e => {
+  if (e.pointerType !== 'mouse' || !S) return;
+  const { x, y } = toWorld(e);
+  S.hover = cellAt(x, y);
+});
+cv.addEventListener('pointerleave', () => { if (S) S.hover = null; });
+cv.addEventListener('contextmenu', e => e.preventDefault());
+
+window.addEventListener('keydown', e => {
+  if (!running || S.over || S.demo) return;
+  if (e.key === ' ') { e.preventDefault(); setPaused(!paused); return; }
+  if (paused) return;
+  const n = parseInt(e.key, 10);
+  if (n >= 1 && n <= S.deck.length) selectCard(S.deck[n - 1]);
+  else if (e.key === 's' || e.key === 'S') shovelBtn.click();
+  else if (e.key === 'Escape') S.selected = null;
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && running && !paused && !S.over && !S.demo) setPaused(true);
+});
+
+/* ================= 尺寸与主循环 ================= */
+function fit() {
+  const r = stage.getBoundingClientRect();
+  const scale = Math.max(0.1, Math.min(r.width / W, r.height / H));
+  const dpr = Math.min(3, window.devicePixelRatio || 1);
+  cv.style.width = Math.floor(W * scale) + 'px';
+  cv.style.height = Math.floor(H * scale) + 'px';
+  cv.width = Math.round(W * scale * dpr);
+  cv.height = Math.round(H * scale * dpr);
+  ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
+}
+new ResizeObserver(fit).observe(stage);
+window.addEventListener('orientationchange', () => setTimeout(fit, 200));
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  if (S.demo) update(dt);
+  else if (running && !paused && !S.over) for (let i = 0; i < speed; i++) { update(dt); if (S.over) break; }
+  else if (S.over) updateEffects(dt);
+  draw();
+  updateUI();
+  requestAnimationFrame(frame);
+}
+
+showMenu();
+fit();
+if (document.fonts && document.fonts.load) document.fonts.load(`20px ${FONT}`).then(() => {}, () => {});
+requestAnimationFrame(frame);
+
+window.__pvz = { get S() { return S; }, get CFG() { return CFG; }, update, startGame, startFlow, advCfg, chalCfg, endlessCfg, showMenu, showAlmanac, save: () => save, LEVELS };
+})();
+</script>
+<script>
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
