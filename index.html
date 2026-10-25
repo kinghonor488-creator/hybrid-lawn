@@ -282,6 +282,12 @@ const PLANTS = {
                   stat: '每 3 秒投 1 个冰西瓜（160 伤害，周围溅射 52，全部减速）', lore: '西瓜投手泡过冰水，砸到哪儿哪儿结霜。' },
   doomcherry:   { name: '樱桃毁灭菇', cost: 250, cd: 50,  hp: 300,  desc: '一大片爆炸，留下一个坑', luckyOnly: true,
                   stat: '一次性 · 大范围 3600 爆炸 · 留下 25 秒不能种的坑', lore: '幸运盒子限定。毁灭菇头顶两颗樱桃，炸起来整片草坪都在抖。' },
+  gatlingpea:   { name: '机关枪豌豆', cost: 250, cd: 7.5, hp: 300,  desc: '一次连射 4 颗豌豆',
+                  stat: '每 1.5 秒连射 4 颗豌豆（各 40 伤害）', lore: '豌豆射手戴上了钢盔，从此说话都是哒哒哒。' },
+  fountainpea:  { name: '喷泉豌豆',   cost: 200, cd: 7.5, hp: 300,  desc: '水弹穿透一整行，还会把僵尸往后推',
+                  stat: '每 1.6 秒 1 颗水弹（穿透一整行，每只 40 伤害，击退）', lore: '豌豆射手和喷泉杂交，头顶一直冒水花。' },
+  mortar:       { name: '迫击炮',     cost: 275, cd: 15,  hp: 300,  desc: '朝全场离房子最近的僵尸开炮，落地爆炸',
+                  stat: '每 5 秒 1 发炮弹（任意一行，中心 300 伤害，周围 120）', lore: '豌豆迫击炮。蹲在后排，哪一行吃紧就往哪一行打。' },
   luckybox:     { name: '幸运盒子',   cost: 50,  cd: 3,   hp: 300,  desc: '随机开出一株植物，偶尔会跳出僵尸', box: 'normal' },
   goldbox:      { name: '黄金盒子',   cost: 100, cd: 6,   hp: 300,  desc: '更容易开出稀有植物，不会开出僵尸', box: 'gold' },
 };
@@ -294,8 +300,8 @@ const DMG_MUL = 2; // 所有植物伤害的倍率（图鉴里的数字已按倍�
 const RARITY = {
   common:    { name: '普通', color: '#fff3d1', plants: ['peaflower', 'icemine', 'spikenut', 'sunnut', 'garlicnut'], weights: [40, 15, 20, 15, 10] },
   rare:      { name: '稀有', color: '#7fd3ff', plants: ['peanut', 'cherrynut', 'cherrypepper', 'chompsquash', 'torchnut'], weights: [30, 15, 20, 20, 15] },
-  epic:      { name: '史诗', color: '#d79bff', plants: ['firepea', 'snowrepeater'], weights: [1, 1] },
-  legendary: { name: '传说', color: '#ffb12b', plants: ['threesnow', 'icemelon', 'doomcherry'], weights: [1, 1, 1] },
+  epic:      { name: '史诗', color: '#d79bff', plants: ['firepea', 'snowrepeater', 'gatlingpea', 'fountainpea'], weights: [1, 1, 1, 1] },
+  legendary: { name: '传说', color: '#ffb12b', plants: ['threesnow', 'icemelon', 'doomcherry', 'mortar'], weights: [1, 1, 1, 1] },
 };
 const BOX_ODDS = {
   normal: { common: 58, rare: 26, epic: 9, legendary: 2, zombie: 5 },
@@ -324,6 +330,9 @@ const LEVELS = [
   { id: '1-8', name: '换行大法',   pool: ALL_POOL,                                       waves: 16, flags: [5, 10, 16], base: 1.4, grow: 0.66, reward: 'garlicnut' },
   { id: '1-9', name: '冰天雪地',   pool: ALL_POOL,                                       waves: 18, flags: [6, 12, 18], base: 1.5, grow: 0.68, reward: 'threesnow' },
   { id: '1-10', name: '草坪保卫战', pool: ALL_POOL,                                      waves: 20, flags: [5, 10, 15, 20], base: 1.6, grow: 0.7, reward: 'icemelon' },
+  { id: '1-11', name: '机枪阵地',   pool: ALL_POOL,                                       waves: 20, flags: [5, 10, 15, 20], base: 1.7, grow: 0.72, reward: 'gatlingpea' },
+  { id: '1-12', name: '喷泉广场',   pool: ALL_POOL,                                       waves: 20, flags: [5, 10, 15, 20], base: 1.8, grow: 0.74, reward: 'fountainpea' },
+  { id: '1-13', name: '炮火连天',   pool: ALL_POOL,                                       waves: 22, flags: [6, 12, 18, 22], base: 1.9, grow: 0.76, reward: 'mortar' },
 ];
 const CHALLENGES = [
   { id: 'c1', name: '阳光稀缺', desc: '天上不掉阳光，开局 800 阳光，精打细算。',
@@ -335,7 +344,7 @@ const CHALLENGES = [
 ];
 const ACH = [
   { id: 'first',     name: '初次守住', desc: '通关冒险 1-1' },
-  { id: 'master',    name: '冒险大师', desc: '通关冒险 1-10' },
+  { id: 'master',    name: '冒险大师', desc: '通关冒险模式最后一关' },
   { id: 'luckywin',  name: '开盒达人', desc: '通关幸运盒子模式' },
   { id: 'legend',    name: '欧皇附体', desc: '从盒子里开出传说植物' },
   { id: 'unlucky',   name: '倒霉蛋',   desc: '一局里开出 3 只僵尸' },
@@ -885,8 +894,39 @@ function update(dt) {
           for (const z of S.zombies) if (z.row === r && !z.dead && z.x > px && z.x < W - 10 && (!tgt || z.x < tgt.x)) tgt = z;
           if (tgt) {
             p.shootT = 3; p.recoil = 0.25;
-            S.lobs.push({ row: r, sx: px - 6, sy: py - 50, z: tgt, tx: tgt.x, t: 0, dur: 0.9 });
+            S.lobs.push({ kind: 'melon', row: r, sx: px - 6, sy: py - 50, z: tgt, tx: tgt.x, t: 0, dur: 0.9 });
             sfx('jump');
+          }
+        }
+        break;
+      case 'gatlingpea':
+        p.shootT -= dt;
+        if (p.shootT <= 0 && zombieAhead(r, px)) {
+          p.shootT = 1.5; p.recoil = 0.3;
+          for (let i = 0; i < 4; i++) S.peas.push({ row: r, x: px + 24 - i * 22, y: py - 14, kind: 'pea', dmg: 20 });
+          sfx('shoot');
+        }
+        break;
+      case 'fountainpea':
+        p.shootT -= dt;
+        if (p.shootT <= 0 && zombieAhead(r, px)) {
+          p.shootT = 1.6; p.recoil = 0.12;
+          S.peas.push({ row: r, x: px + 22, y: py - 14, kind: 'water', dmg: 20, pierce: true, hitSet: new Set() });
+          sfx('shoot');
+        }
+        break;
+      case 'mortar':
+        p.shootT -= dt;
+        if (p.shootT <= 0) {
+          // 全场离房子最近的僵尸
+          let tgt = null;
+          for (const z of S.zombies) if (!z.dead && z.x < W - 10 && z.jumping <= 0 && (!tgt || z.x < tgt.x)) tgt = z;
+          if (tgt) {
+            p.shootT = 5; p.recoil = 0.35;
+            S.lobs.push({ kind: 'shell', row: tgt.row, sx: px + 10, sy: py - 50, z: tgt, tx: tgt.x, t: 0, dur: 1.2 });
+            for (let i = 0; i < 6; i++) part({ x: px + 14, y: py - 52, vx: rnd(-40, 40), vy: rnd(-120, -40), grav: -30, life: 0.6, size: rnd(3, 6), color: 'rgba(200,200,200,.8)' });
+            S.shake = Math.max(S.shake, 2);
+            sfx('slam');
           }
         }
         break;
@@ -986,6 +1026,19 @@ function update(dt) {
       }
     }
     if (p.kind === 'fire' && Math.random() < 0.5) part({ x: p.x - 8, y: p.y + rnd(-3, 3), vx: rnd(-60, -20), vy: rnd(-40, 0), grav: -40, life: 0.25, size: rnd(2, 3.5), color: '#ffb12b' });
+    // 水弹：穿透这一行每只僵尸各打一次，并往后推
+    if (p.pierce) {
+      for (const z of S.zombies) {
+        if (z.row !== p.row || z.dead || p.hitSet.has(z) || p.x < z.x - 22 || p.x > z.x + 18) continue;
+        p.hitSet.add(z);
+        hurtZombie(z, p.dmg);
+        if (z.jumping <= 0) z.x = Math.min(W, z.x + 8);
+        for (let i = 0; i < 5; i++) part({ x: p.x, y: p.y, vx: rnd(-120, 60), vy: rnd(-180, 20), grav: 500, life: 0.35, size: rnd(2, 3.5), color: i % 2 ? '#bff3ff' : '#4fc3e8' });
+        sfx('hit');
+      }
+      if (p.x > W + 20) p.gone = true;
+      continue;
+    }
     let hit = null;
     for (const z of S.zombies)
       if (z.row === p.row && !z.dead && p.x >= z.x - 22 && p.x <= z.x + 18 && (!hit || z.x < hit.x)) hit = z;
@@ -1008,7 +1061,20 @@ function update(dt) {
   for (const l of S.lobs) {
     l.t += dt;
     if (l.z && !l.z.dead) l.tx = l.z.x;
-    if (l.t >= l.dur) {
+    if (l.t >= l.dur && l.kind === 'shell') {
+      l.gone = true;
+      const y = cellCY(l.row);
+      for (const z of S.zombies) {
+        if (z.dead) continue;
+        const d = Math.abs(z.x - l.tx);
+        if (z.row === l.row && d < 70) hurtZombie(z, d < 25 ? 150 : 60);
+        else if (Math.abs(z.row - l.row) === 1 && d < 40) hurtZombie(z, 60);
+      }
+      S.fx.push({ type: 'shellboom', x: l.tx, y: y + 10, t: 0, dur: 0.5 });
+      for (let i = 0; i < 14; i++) part({ x: l.tx, y: y + 10, vx: rnd(-180, 180), vy: rnd(-260, -60), grav: 600, life: rnd(0.4, 0.7), size: rnd(2, 5), color: ['#5b3a1c', '#ff7a1a', '#3b3a35'][i % 3], vr: 10, shape: i % 2 ? 'rect' : 'circle' });
+      S.shake = Math.max(S.shake, 5);
+      sfx('boom');
+    } else if (l.t >= l.dur) {
       l.gone = true;
       const y = cellCY(l.row);
       for (const z of S.zombies) {
@@ -1350,6 +1416,49 @@ function drawPlant(type, x, y, t, p) {
       cherries(x, y - 62);
       break;
     }
+    case 'gatlingpea': {
+      shadow(x, y + 2, 22);
+      stem(x, y, y - 30 + bob);
+      const hx = x - 2 + rc + (p && p.recoil > 0 ? Math.sin(t * 80) * 1.5 : 0), hy = y - 40 + bob;
+      peaHead(hx, hy, 16, '#7cc23f', '#2f5a14');
+      // 钢盔和多管枪口
+      g.beginPath(); g.arc(hx - 1, hy - 3, 18, Math.PI * 1.05, Math.PI * 1.95); g.closePath();
+      g.fillStyle = '#4f6b2a'; g.fill(); g.strokeStyle = '#26350f'; g.lineWidth = 2.5; g.stroke();
+      line(hx - 19, hy - 4, hx + 17, hy - 4, '#26350f', 3);
+      ell(hx + 22, hy - 5, 2.2, 2.2, '#1f3d12'); ell(hx + 22, hy + 5, 2.2, 2.2, '#1f3d12');
+      if (p && p.recoil > 0.15) ell(hx + 32, hy, 6 + Math.random() * 3, 5, 'rgba(255,220,100,.8)');
+      break;
+    }
+    case 'fountainpea': {
+      shadow(x, y + 2, 22);
+      stem(x, y, y - 30 + bob);
+      const hx = x - 2 + rc, hy = y - 40 + bob;
+      peaHead(hx, hy, 16, '#5fd0d8', '#1f6f86');
+      // 头顶喷泉
+      for (let i = 0; i < 5; i++) {
+        const ph = (t * 1.6 + i / 5) % 1, side = i % 2 ? 1 : -1;
+        const dx = side * ph * 14, dy = -ph * 26 + ph * ph * 30;
+        ell(hx - 2 + dx, hy - 18 + dy, 2.6, 3.2, `rgba(111,214,242,${1 - ph * 0.6})`);
+      }
+      line(hx - 2, hy - 15, hx - 2, hy - 22, '#1f6f86', 3);
+      break;
+    }
+    case 'mortar': {
+      shadow(x, y + 2, 26);
+      const kick = p && p.recoil > 0 ? 3 : 0;
+      ell(x - 12, y - 3, 13, 5, '#5fa832', '#2f6b1c', 1.5); ell(x + 12, y - 3, 13, 5, '#5fa832', '#2f6b1c', 1.5);
+      // 炮管：斜向右上
+      g.save(); g.translate(x + 4, y - 26 + kick); g.rotate(-0.95);
+      rr(-6, -34, 16, 36, 3); g.fillStyle = '#4b5257'; g.fill(); g.strokeStyle = '#1f2326'; g.lineWidth = 2.5; g.stroke();
+      rr(-8, -38, 20, 7, 2); g.fillStyle = '#5c6469'; g.fill(); g.stroke();
+      g.restore();
+      ell(x - 2, y - 20 + kick, 20, 18, '#8fd14f', '#2f6b1c', 2.5);
+      g.beginPath(); g.arc(x - 3, y - 26 + kick, 17, Math.PI * 1.05, Math.PI * 1.95); g.closePath();
+      g.fillStyle = '#4f6b2a'; g.fill(); g.strokeStyle = '#26350f'; g.lineWidth = 2; g.stroke();
+      ell(x - 8, y - 20 + kick, 3.5, 4.5, '#fff', '#2f6b1c', 1); ell(x + 4, y - 20 + kick, 3.5, 4.5, '#fff', '#2f6b1c', 1);
+      ell(x - 7, y - 19 + kick, 1.8, 2.2, '#111'); ell(x + 5, y - 19 + kick, 1.8, 2.2, '#111');
+      break;
+    }
     case 'luckybox': case 'goldbox': {
       const gold = type === 'goldbox';
       const k = p ? Math.min(1, p.open / 0.9) : 0;
@@ -1595,6 +1704,10 @@ function drawFx(f) {
       const fx = LX + 30 + i * 66, h = 1.2 + Math.sin(f.t * 20 + i) * 0.3;
       g.save(); g.globalAlpha = a; flame(fx, f.y + 36, 26 * h, f.t + i); g.restore();
     }
+  } else if (f.type === 'shellboom') {
+    ell(f.x, f.y, 20 + k * 60, 14 + k * 36, `rgba(255,140,40,${0.8 * (1 - k)})`);
+    ell(f.x, f.y, 30 + k * 80, 20 + k * 50, null, `rgba(255,255,255,${0.8 * (1 - k)})`, 3);
+    if (k < 0.6) bigText('砰！', f.x, f.y - 30, 28, '#ffe36b', '#4a1405', 1 + (1 - k) * 0.2);
   } else if (f.type === 'plant') {
     for (let i = 0; i < 5; i++) ell(f.x - 24 + i * 12, f.y - k * 10, 7 * (1 - k), 5 * (1 - k), `rgba(122,85,48,${1 - k})`);
   }
@@ -1655,6 +1768,12 @@ function draw() {
       ell(p.x - 9, p.y, 9, 4, 'rgba(191,233,255,.6)');
       ell(p.x, p.y, 7, 7, '#9fe2ff', '#1f5f86', 1.5);
       ell(p.x - 2, p.y - 2, 2.5, 2, '#fff');
+    } else if (p.kind === 'water') {
+      ell(p.x - 14, p.y, 14, 4, 'rgba(79,195,232,.35)');
+      g.beginPath(); g.moveTo(p.x + 10, p.y);
+      g.quadraticCurveTo(p.x, p.y - 10, p.x - 8, p.y); g.quadraticCurveTo(p.x, p.y + 10, p.x + 10, p.y);
+      g.fillStyle = '#6fd6f2'; g.fill(); g.strokeStyle = '#1f7fa6'; g.lineWidth = 1.5; g.stroke();
+      ell(p.x - 1, p.y - 2, 2.5, 1.8, '#fff');
     } else {
       ell(p.x, p.y, 7, 7, '#8fe04a', '#2f6b1c', 1.5);
       ell(p.x - 2, p.y - 2, 2.5, 2, 'rgba(255,255,255,.7)');
@@ -1662,12 +1781,20 @@ function draw() {
   }
   for (const l of S.lobs) {
     const k = Math.min(1, l.t / l.dur), ty = cellCY(l.row) - 20;
-    const lx = l.sx + (l.tx - l.sx) * k, ly = l.sy + (ty - l.sy) * k - Math.sin(k * Math.PI) * 120;
+    const shell = l.kind === 'shell';
+    const lx = l.sx + (l.tx - l.sx) * k, ly = l.sy + (ty - l.sy) * k - Math.sin(k * Math.PI) * (shell ? 200 : 120);
     ell(lx, cellCY(l.row) + 30, 10 * (0.5 + k * 0.5), 4, 'rgba(0,0,0,.15)');
     g.save(); g.translate(lx, ly); g.rotate(k * 6);
-    ell(0, 0, 13, 11, '#8fd8c8', '#1f5f6a', 2);
-    line(-6, -9, -6, 9, 'rgba(31,95,106,.5)', 2); line(2, -10, 2, 10, 'rgba(31,95,106,.5)', 2);
-    ell(-4, -4, 3, 2, '#fff');
+    if (shell) {
+      ell(0, 0, 9, 9, '#3b3a35', '#111', 2);
+      ell(-3, -3, 2.5, 2, 'rgba(255,255,255,.5)');
+      line(0, -9, 3, -15, '#8a5a2e', 2);
+      ell(3, -16, 3 + Math.random() * 2, 3 + Math.random() * 2, '#ffd23f');
+    } else {
+      ell(0, 0, 13, 11, '#8fd8c8', '#1f5f6a', 2);
+      line(-6, -9, -6, 9, 'rgba(31,95,106,.5)', 2); line(2, -10, 2, 10, 'rgba(31,95,106,.5)', 2);
+      ell(-4, -4, 3, 2, '#fff');
+    }
     g.restore();
   }
   for (const f of S.fx) drawFx(f);
