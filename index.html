@@ -253,23 +253,23 @@ let g = ctx; // 当前绘图上下文（图标会临时替换）
 /* ================= 数据 ================= */
 const PLANTS = {
   peaflower:    { name: '豌豆向日葵', cost: 75,  cd: 7.5, hp: 300,  desc: '产阳光，也会射豌豆',
-                  stat: '每 20 秒产 25 阳光 · 每 2 秒射 1 颗豌豆（20 伤害）', lore: '向日葵和豌豆射手的孩子。白天晒太阳，顺手打僵尸。' },
+                  stat: '每 20 秒产 25 阳光 · 每 2 秒射 1 颗豌豆（40 伤害）', lore: '向日葵和豌豆射手的孩子。白天晒太阳，顺手打僵尸。' },
   firepea:      { name: '火焰豌豆',   cost: 175, cd: 7.5, hp: 300,  desc: '火焰豌豆伤害翻倍，还会溅射',
-                  stat: '每 1.5 秒 1 颗火焰豌豆（40 伤害，周围溅射 13）', lore: '豌豆射手和火炬树桩杂交，射出来的豌豆自带火焰。' },
+                  stat: '每 1.5 秒 1 颗火焰豌豆（80 伤害，周围溅射 26）', lore: '豌豆射手和火炬树桩杂交，射出来的豌豆自带火焰。' },
   peanut:       { name: '豌豆坚果',   cost: 125, cd: 20,  hp: 2400, desc: '很耐啃的坚果，还能射豌豆',
-                  stat: '2400 耐久 · 每 1.6 秒 1 颗豌豆', lore: '坚果墙嘴里长出了豌豆射手的炮管，挡路也不闲着。' },
+                  stat: '2400 耐久 · 每 1.6 秒 1 颗豌豆（40 伤害）', lore: '坚果墙嘴里长出了豌豆射手的炮管，挡路也不闲着。' },
   icemine:      { name: '寒冰土豆雷', cost: 50,  cd: 25,  hp: 300,  desc: '12 秒后出土，炸伤并冻住附近僵尸',
-                  stat: '12 秒出土 · 1800 伤害 · 冻结周围 6 秒', lore: '土豆雷在冰箱里睡了一晚，醒来浑身冒冷气。' },
+                  stat: '12 秒出土 · 3600 伤害 · 冻结周围 6 秒', lore: '土豆雷在冰箱里睡了一晚，醒来浑身冒冷气。' },
   cherrynut:    { name: '樱桃坚果',   cost: 150, cd: 30,  hp: 4000, desc: '超厚坚果，被啃碎时炸飞周围僵尸',
-                  stat: '4000 耐久 · 碎裂时 3×3 爆炸 1800 伤害', lore: '坚果头顶长着两颗樱桃炸弹，千万别咬穿它。' },
+                  stat: '4000 耐久 · 碎裂时 3×3 爆炸 3600 伤害', lore: '坚果头顶长着两颗樱桃炸弹，千万别咬穿它。' },
   snowrepeater: { name: '寒冰双发',   cost: 200, cd: 7.5, hp: 300,  desc: '一次射两颗冰豌豆，让僵尸减速',
-                  stat: '每 1.5 秒 2 颗冰豌豆（各 20 伤害，减速 50%）', lore: '寒冰射手和双发射手杂交，冷得连说话都哆嗦。' },
+                  stat: '每 1.5 秒 2 颗冰豌豆（各 40 伤害，减速 50%）', lore: '寒冰射手和双发射手杂交，冷得连说话都哆嗦。' },
   chompsquash:  { name: '大嘴窝瓜',   cost: 150, cd: 20,  hp: 300,  desc: '跳起来压扁面前的僵尸，再慢慢嚼',
-                  stat: '压扁 1800 伤害 · 嚼 12 秒后能再出手', lore: '窝瓜有了大嘴花的胃口，压完还要吃掉。' },
+                  stat: '压扁 3600 伤害 · 嚼 12 秒后能再出手', lore: '窝瓜有了大嘴花的胃口，压完还要吃掉。' },
   cherrypepper: { name: '樱桃辣椒',   cost: 125, cd: 35,  hp: 300,  desc: '点燃一整行，烧光这一行的僵尸',
-                  stat: '一次性 · 整行 1800 火焰伤害', lore: '火爆辣椒头上顶着樱桃，脾气比两个加起来还大。' },
+                  stat: '一次性 · 整行 3600 火焰伤害', lore: '火爆辣椒头上顶着樱桃，脾气比两个加起来还大。' },
   spikenut:     { name: '地刺坚果',   cost: 100, cd: 7.5, hp: 600,  desc: '僵尸啃不动它，踩上去会被扎伤',
-                  stat: '每秒扎伤上面的僵尸 20 · 每扎一下磨损 10 耐久（共 600）', lore: '地刺和坚果杂交，趴在地上，刺比坚果壳还硬。' },
+                  stat: '每秒扎伤上面的僵尸 40 · 每扎一下磨损 10 耐久（共 600）', lore: '地刺和坚果杂交，趴在地上，刺比坚果壳还硬。' },
   sunnut:       { name: '阳光坚果',   cost: 100, cd: 20,  hp: 1500, desc: '能挡僵尸的坚果，还会产阳光',
                   stat: '1500 耐久 · 每 25 秒产 25 阳光', lore: '坚果头上开了一圈向日葵花瓣，晒着太阳站岗。' },
   torchnut:     { name: '火炬坚果',   cost: 150, cd: 20,  hp: 2400, desc: '穿过它的豌豆会变成火焰豌豆',
@@ -277,23 +277,25 @@ const PLANTS = {
   garlicnut:    { name: '大蒜坚果',   cost: 75,  cd: 15,  hp: 1200, desc: '僵尸咬一口就嫌臭，换到隔壁行',
                   stat: '1200 耐久 · 僵尸咬它半秒就会换行', lore: '大蒜味的坚果。僵尸咬一口，皱着眉头就走了。' },
   threesnow:    { name: '三线寒冰',   cost: 300, cd: 7.5, hp: 300,  desc: '同时朝三行射冰豌豆',
-                  stat: '每 1.5 秒朝上中下三行各射 1 颗冰豌豆（20 伤害，减速）', lore: '三线射手和寒冰射手杂交，三个脑袋一起打喷嚏。' },
+                  stat: '每 1.5 秒朝上中下三行各射 1 颗冰豌豆（40 伤害，减速）', lore: '三线射手和寒冰射手杂交，三个脑袋一起打喷嚏。' },
   icemelon:     { name: '寒冰西瓜',   cost: 300, cd: 7.5, hp: 300,  desc: '投出冰西瓜，砸中一片还会减速',
-                  stat: '每 3 秒投 1 个冰西瓜（80 伤害，周围溅射 26，全部减速）', lore: '西瓜投手泡过冰水，砸到哪儿哪儿结霜。' },
+                  stat: '每 3 秒投 1 个冰西瓜（160 伤害，周围溅射 52，全部减速）', lore: '西瓜投手泡过冰水，砸到哪儿哪儿结霜。' },
   doomcherry:   { name: '樱桃毁灭菇', cost: 250, cd: 50,  hp: 300,  desc: '一大片爆炸，留下一个坑', luckyOnly: true,
-                  stat: '一次性 · 大范围 1800 爆炸 · 留下 25 秒不能种的坑', lore: '幸运盒子限定。毁灭菇头顶两颗樱桃，炸起来整片草坪都在抖。' },
+                  stat: '一次性 · 大范围 3600 爆炸 · 留下 25 秒不能种的坑', lore: '幸运盒子限定。毁灭菇头顶两颗樱桃，炸起来整片草坪都在抖。' },
   luckybox:     { name: '幸运盒子',   cost: 50,  cd: 3,   hp: 300,  desc: '随机开出一株植物，偶尔会跳出僵尸', box: 'normal' },
-  goldbox:      { name: '黄金盒子',   cost: 150, cd: 6,   hp: 300,  desc: '更容易开出稀有植物，不会开出僵尸', box: 'gold' },
+  goldbox:      { name: '黄金盒子',   cost: 100, cd: 6,   hp: 300,  desc: '更容易开出稀有植物，不会开出僵尸', box: 'gold' },
 };
 const PLANT_ORDER = Object.keys(PLANTS).filter(k => !PLANTS[k].box);
 const BASE_PLANTS = ['peaflower', 'firepea', 'peanut', 'spikenut'];
 const NUTS = new Set(['peanut', 'cherrynut', 'sunnut', 'torchnut', 'garlicnut']);
+const DMG_MUL = 2; // 所有植物伤害的倍率（图鉴里的数字已按倍率写好）
 // 幸运盒子：植物稀有度和开盒概率
+// weights：同一稀有度里各植物被开出的权重，能攻击的植物更容易开出来
 const RARITY = {
-  common:    { name: '普通', color: '#fff3d1', plants: ['peaflower', 'icemine', 'spikenut', 'sunnut', 'garlicnut'] },
-  rare:      { name: '稀有', color: '#7fd3ff', plants: ['peanut', 'cherrynut', 'cherrypepper', 'chompsquash', 'torchnut'] },
-  epic:      { name: '史诗', color: '#d79bff', plants: ['firepea', 'snowrepeater'] },
-  legendary: { name: '传说', color: '#ffb12b', plants: ['threesnow', 'icemelon', 'doomcherry'] },
+  common:    { name: '普通', color: '#fff3d1', plants: ['peaflower', 'icemine', 'spikenut', 'sunnut', 'garlicnut'], weights: [40, 15, 20, 15, 10] },
+  rare:      { name: '稀有', color: '#7fd3ff', plants: ['peanut', 'cherrynut', 'cherrypepper', 'chompsquash', 'torchnut'], weights: [30, 15, 20, 20, 15] },
+  epic:      { name: '史诗', color: '#d79bff', plants: ['firepea', 'snowrepeater'], weights: [1, 1] },
+  legendary: { name: '传说', color: '#ffb12b', plants: ['threesnow', 'icemelon', 'doomcherry'], weights: [1, 1, 1] },
 };
 const BOX_ODDS = {
   normal: { common: 58, rare: 26, epic: 9, legendary: 2, zombie: 5 },
@@ -543,8 +545,10 @@ function rollBox(kind) {
     r -= odds[k];
     if (r <= 0) {
       if (k === 'zombie') return { zombie: true };
-      const list = RARITY[k].plants;
-      return { plant: list[Math.floor(Math.random() * list.length)], rarity: k };
+      const { plants, weights } = RARITY[k];
+      let w = Math.random() * weights.reduce((a, b) => a + b, 0);
+      for (let i = 0; i < plants.length; i++) { w -= weights[i]; if (w <= 0) return { plant: plants[i], rarity: k }; }
+      return { plant: plants[0], rarity: k };
     }
   }
   return { plant: 'peaflower', rarity: 'common' };
@@ -559,9 +563,10 @@ function openBox(r, c, p) {
       color: (gold ? ['#ffd23f', '#fff3a0', '#e3263a'] : ['#9b5de5', '#ffd23f', '#fff3d1'])[i % 3] });
   }
   if (res.zombie) {
+    // 僵尸从这一行的路口冲进来，不会直接出现在房子门口
     S.plants[r][c] = null;
-    spawnZombie(Math.random() < 0.6 ? 'normal' : 'cone', r, px + 6);
-    floatText(px, py - 40, '坏运气！', '#ff6b5a', 24);
+    spawnZombie(Math.random() < 0.6 ? 'normal' : 'cone', r, LX + CW * COLS + 10);
+    floatText(px, py - 40, '坏运气！僵尸溜到路口了', '#ff6b5a', 20);
     S.boxZombies++;
     if (S.boxZombies >= 3) unlockAch('unlucky');
     sfx('lose');
@@ -632,6 +637,7 @@ function zombieAhead(r, px) {
 // 返回 true 表示这次攻击打死了僵尸
 function hurtZombie(z, dmg, opt = {}) {
   if (z.dead) return false;
+  dmg *= DMG_MUL;
   const y = cellCY(z.row) + 32;
   if (z.armor > 0) {
     z.armor -= dmg;
@@ -1887,7 +1893,7 @@ function advCfg(i) {
 }
 function chalCfg(c) { return makeCfg(Object.assign({ mode: 'challenge', id: c.id, label: `挑战：${c.name}`, plants: PICKABLE.slice() }, c.cfg)); }
 function endlessCfg() { return makeCfg({ mode: 'endless', label: '无尽模式', pool: ALL_POOL, waves: Infinity, flagEvery: 10, base: 1, grow: 0.6, startSun: 300, plants: PICKABLE.slice() }); }
-function luckyCfg() { return makeCfg({ mode: 'lucky', label: '幸运盒子', pool: ALL_POOL, waves: 15, flags: [5, 10, 15], base: 1, grow: 0.55, startSun: 200, plants: ['luckybox', 'goldbox'] }); }
+function luckyCfg() { return makeCfg({ mode: 'lucky', label: '幸运盒子', pool: ALL_POOL, waves: 15, flags: [5, 10, 15], base: 1, grow: 0.55, startSun: 200, freeRow: 'peaflower', plants: ['luckybox', 'goldbox'] }); }
 
 function showLevels() {
   const grid = el('div', { class: 'lvgrid' });
@@ -2063,6 +2069,8 @@ function gameOver(won) {
 
 function startGame(cfg, deck) {
   S = newState(cfg, deck);
+  // 幸运盒子：开局每行送一株豌豆向日葵，保证每行都有攻击
+  if (cfg.freeRow) for (let r = 0; r < ROWS; r++) { const p = makePlant(cfg.freeRow); p.age = 1; S.plants[r][0] = p; }
   buildCards(deck);
   bankEl.hidden = false;
   running = true; paused = false; lastUI = {};
