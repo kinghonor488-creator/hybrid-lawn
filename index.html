@@ -196,14 +196,19 @@ button{font:inherit;color:inherit}
 #toast.show{transform:translate(-50%,0);opacity:1}
 /* 竖着拿手机：整个游戏旋转 90° 横过来铺满屏幕 */
 @media (orientation:portrait) and (max-width:600px){
+  /* --scr-w/--scr-h 由脚本按真实可见区域写入；旋转后内容的上/右/下/左对应屏幕的右/下/左/上 */
   #app{
-    width:100vh;height:100vw;width:100dvh;height:100dvw;
-    transform-origin:top left;transform:translateX(100vw) rotate(90deg);
+    width:var(--scr-h,100dvh);height:var(--scr-w,100dvw);
+    transform-origin:top left;transform:translateX(var(--scr-w,100vw)) rotate(90deg);
     padding-left:max(8px,env(safe-area-inset-top,0px));
     padding-right:max(8px,env(safe-area-inset-bottom,0px));
     padding-top:max(8px,env(safe-area-inset-right,0px));
     padding-bottom:max(8px,env(safe-area-inset-left,0px));
   }
+  #overlay{
+    padding:max(10px,env(safe-area-inset-right,0px)) max(10px,env(safe-area-inset-bottom,0px)) max(10px,env(safe-area-inset-left,0px)) max(10px,env(safe-area-inset-top,0px));
+  }
+  #toast{top:max(12px,env(safe-area-inset-right,0px))}
 }
 /* 横屏手机（以及旋转后的竖屏）：种子栏竖到左侧 */
 @media (orientation:landscape) and (max-height:520px), (orientation:portrait) and (max-width:600px){
@@ -317,6 +322,16 @@ const PLANTS = {
                   stat: '每 2.5 秒放电，打中最近的僵尸后再跳 3 只（各 100 伤害）· 照亮浓雾', lore: '原创植物。雷雨天长出来的藤，碰一下浑身发麻。' },
   clockflower:  { name: '时钟花',     cost: 300, cd: 30,  hp: 300,  desc: '每隔一段时间让全场僵尸停住 3 秒', original: true,
                   stat: '种下 6 秒后第一次生效，之后每 18 秒让全场僵尸停 3 秒', lore: '原创植物。花瓣是表盘，嘀嗒一声，时间就停了。' },
+  twinsun:      { name: '双子向日葵', cost: 125, cd: 7.5, hp: 300,  desc: '两个花盘一起晒，阳光产得更多',
+                  stat: '每 18 秒产 50 阳光', lore: '向日葵和自己杂交了一次，两个脑袋抢着晒太阳。' },
+  magnetnut:    { name: '磁力坚果',   cost: 125, cd: 20,  hp: 2000, desc: '吸走附近僵尸的铁桶、头盔和盾牌',
+                  stat: '2000 耐久 · 每 8 秒吸走 3 格内一只僵尸的金属护甲', lore: '磁力菇钻进坚果壳里，铁家伙一靠近就被吸走。' },
+  cactuspea:    { name: '仙人掌豌豆', cost: 150, cd: 7.5, hp: 300,  desc: '射出的尖刺能打到气球，还能穿透一只僵尸',
+                  stat: '每 1.5 秒 1 根尖刺（50 伤害，能打气球，穿透 2 只）', lore: '仙人掌和豌豆射手杂交，嘴里吐的全是刺。' },
+  laserbean:    { name: '激光豆',     cost: 275, cd: 7.5, hp: 300,  desc: '激光瞬间打穿整行所有僵尸', original: true,
+                  stat: '每 3 秒发射激光，整行每只僵尸 120 伤害（盾牌也挡不住）', lore: '原创植物。豆荚里装着一块会发光的晶体。' },
+  icecherry:    { name: '寒冰樱桃',   cost: 150, cd: 40,  hp: 300,  desc: '冻住全场僵尸 5 秒，再造成一点伤害',
+                  stat: '一次性 · 全场冻结 5 秒 · 每只 200 伤害', lore: '寒冰菇和樱桃炸弹杂交，炸开的是一阵冷风。' },
   // —— 保龄球小游戏专用 ——
   bowlnut:      { name: '保龄球坚果', cost: 0,   cd: 0,   hp: 300,  desc: '滚出去撞僵尸，撞到后会弹到隔壁行', special: true },
   bombnut:      { name: '爆炸坚果',   cost: 0,   cd: 0,   hp: 300,  desc: '滚出去撞到僵尸就爆炸', special: true },
@@ -326,16 +341,16 @@ const PLANTS = {
 const PLANT_ORDER = Object.keys(PLANTS).filter(k => !PLANTS[k].box && !PLANTS[k].special);
 // 不会被啃、僵尸直接走过去的地面植物
 const GROUND = new Set(['spikenut', 'springgrass']);
-const BASE_PLANTS = ['peaflower', 'firepea', 'peanut', 'spikenut'];
-const NUTS = new Set(['peanut', 'cherrynut', 'sunnut', 'torchnut', 'garlicnut']);
+const BASE_PLANTS = ['peaflower', 'firepea', 'peanut', 'spikenut', 'twinsun'];
+const NUTS = new Set(['peanut', 'cherrynut', 'sunnut', 'torchnut', 'garlicnut', 'magnetnut']);
 const DMG_MUL = 2; // 所有植物伤害的倍率（图鉴里的数字已按倍率写好）
 // 幸运盒子：植物稀有度和开盒概率
 // weights：同一稀有度里各植物被开出的权重，能攻击的植物更容易开出来
 const RARITY = {
-  common:    { name: '普通', color: '#fff3d1', plants: ['peaflower', 'icemine', 'spikenut', 'sunnut', 'garlicnut', 'shieldleaf', 'springgrass'], weights: [40, 12, 18, 15, 8, 10, 10] },
-  rare:      { name: '稀有', color: '#7fd3ff', plants: ['peanut', 'cherrynut', 'cherrypepper', 'chompsquash', 'torchnut', 'beeflower', 'boomerang'], weights: [25, 12, 15, 15, 12, 20, 20] },
-  epic:      { name: '史诗', color: '#d79bff', plants: ['firepea', 'snowrepeater', 'gatlingpea', 'fountainpea', 'lightningvine'], weights: [1, 1, 1, 1, 1] },
-  legendary: { name: '传说', color: '#ffb12b', plants: ['threesnow', 'icemelon', 'doomcherry', 'mortar', 'clockflower'], weights: [1, 1, 1, 1, 1] },
+  common:    { name: '普通', color: '#fff3d1', plants: ['peaflower', 'icemine', 'spikenut', 'sunnut', 'garlicnut', 'shieldleaf', 'springgrass', 'twinsun'], weights: [40, 12, 18, 15, 8, 10, 10, 14] },
+  rare:      { name: '稀有', color: '#7fd3ff', plants: ['peanut', 'cherrynut', 'cherrypepper', 'chompsquash', 'torchnut', 'beeflower', 'boomerang', 'magnetnut', 'cactuspea'], weights: [25, 12, 15, 15, 12, 20, 20, 12, 20] },
+  epic:      { name: '史诗', color: '#d79bff', plants: ['firepea', 'snowrepeater', 'gatlingpea', 'fountainpea', 'lightningvine', 'icecherry'], weights: [1, 1, 1, 1, 1, 1] },
+  legendary: { name: '传说', color: '#ffb12b', plants: ['threesnow', 'icemelon', 'doomcherry', 'mortar', 'clockflower', 'laserbean'], weights: [1, 1, 1, 1, 1, 1] },
 };
 const BOX_ODDS = {
   normal: { common: 58, rare: 26, epic: 9, legendary: 2, zombie: 5 },
@@ -355,11 +370,19 @@ const ZDEF = {
               lore: '飘在空中，越过所有植物，直线子弹打不到。蜜蜂、闪电、西瓜、迫击炮、大嘴窝瓜和爆炸能把气球打破。' },
   garg:     { name: '巨人僵尸',       hp: 4000, armor: 0, armorType: null, speed: 10, cost: 10,
               lore: '扛着电线杆，一锤砸烂面前的植物。血掉到一半时，会把背上的小鬼扔进后排。' },
+  zomboni:  { name: '冰车僵尸',       hp: 1400, armor: 0, armorType: null, speed: 12, cost: 7,
+              lore: '开着冰车直接碾过植物，一碰就碎。地刺能一下扎爆它的轮胎。' },
+  digger:   { name: '矿工僵尸',       hp: 270, armor: 370, armorType: 'helmet', speed: 22, cost: 4,
+              lore: '从地下挖过去，前排植物打不到它。钻到第三列才冒出来，专啃后排。磁力坚果能吸走它的矿工帽。' },
+  dancer:   { name: '舞王僵尸',       hp: 500, armor: 0, armorType: null, speed: 16, cost: 6,
+              lore: '一进场就跳一段舞，召唤 4 个伴舞僵尸围在身边。' },
   imp:      { name: '小鬼',           hp: 150, armor: 0, armorType: null, speed: 28, cost: 99,
               lore: '巨人背上的小个子，被扔出去以后跑得飞快。' },
 };
 const ZOMBIE_ORDER = Object.keys(ZDEF);
-const ALL_POOL = ['normal', 'cone', 'pole', 'bucket', 'football', 'shield', 'balloon', 'garg'];
+const ALL_POOL = ['normal', 'cone', 'pole', 'bucket', 'football', 'shield', 'balloon', 'garg', 'zomboni', 'digger', 'dancer'];
+// 金属护甲：会被磁力坚果吸走
+const METAL = new Set(['bucket', 'football', 'helmet']);
 const CH1_POOL = ['normal', 'cone', 'pole', 'bucket', 'football'];
 
 const LEVELS = [
@@ -390,6 +413,14 @@ const LEVELS = [
     pool: ['normal', 'cone', 'pole', 'bucket', 'football', 'shield', 'balloon'], waves: 18, flags: [6, 12, 18], base: 1.6, grow: 0.68, reward: 'lightningvine' },
   { id: '2-6', chapter: 2, name: '巨人之夜', feature: '黑夜 · 墓碑 · 巨人僵尸', night: true, graves: 3,
     pool: ALL_POOL, waves: 20, flags: [5, 10, 15, 20], base: 1.7, grow: 0.72, reward: 'clockflower' },
+  { id: '2-7', chapter: 2, name: '冰车来了', feature: '冰车僵尸会碾碎植物',
+    pool: ['normal', 'cone', 'bucket', 'shield', 'zomboni'], waves: 16, flags: [8, 16], base: 1.6, grow: 0.7, reward: 'magnetnut' },
+  { id: '2-8', chapter: 2, name: '地下偷袭', feature: '矿工僵尸从地下钻到后排',
+    pool: ['normal', 'cone', 'pole', 'bucket', 'digger', 'balloon'], waves: 18, flags: [6, 12, 18], base: 1.7, grow: 0.72, reward: 'cactuspea' },
+  { id: '2-9', chapter: 2, name: '舞会之夜', feature: '黑夜 · 舞王僵尸', night: true, graves: 3,
+    pool: ['normal', 'cone', 'bucket', 'shield', 'dancer', 'digger'], waves: 18, flags: [6, 12, 18], base: 1.8, grow: 0.74, reward: 'laserbean' },
+  { id: '2-10', chapter: 2, name: '僵尸总动员', feature: '黑夜 · 浓雾 · 所有僵尸', night: true, fog: true, graves: 4,
+    pool: ALL_POOL, waves: 22, flags: [6, 12, 18, 22], base: 1.9, grow: 0.76, reward: 'icecherry' },
 ];
 const MINIGAMES = [
   { id: 'm1', name: '坚果保龄球', desc: '传送带送来坚果，放在红线左边就会滚出去。撞到僵尸会弹到隔壁行，连撞越多越爽。',
@@ -413,11 +444,11 @@ const CHALLENGES = [
 const ACH = [
   { id: 'first',     name: '初次守住', desc: '通关冒险 1-1' },
   { id: 'master',    name: '冒险大师', desc: '通关冒险 1-13' },
-  { id: 'chapter2',  name: '黑夜行者', desc: '通关冒险 2-6' },
+  { id: 'chapter2',  name: '黑夜行者', desc: '通关冒险 2-10' },
   { id: 'minigamer', name: '小游戏玩家', desc: '完成全部 3 个小游戏' },
   { id: 'bowler',    name: '保龄球高手', desc: '一个坚果连续撞到 5 只僵尸' },
   { id: 'giantslayer', name: '巨人杀手', desc: '消灭一只巨人僵尸' },
-  { id: 'luckywin',  name: '开盒达人', desc: '通关幸运盒子模式' },
+  { id: 'luckywin',  name: '开盒达人', desc: '幸运盒子撑过第 15 波' },
   { id: 'legend',    name: '欧皇附体', desc: '从盒子里开出传说植物' },
   { id: 'unlucky',   name: '倒霉蛋',   desc: '一局里开出 3 只僵尸' },
   { id: 'challenger',name: '挑战者',   desc: '完成全部 3 个挑战' },
@@ -431,7 +462,7 @@ const ACH = [
 
 /* ================= 存档 ================= */
 const SAVE_KEY = 'hybrid-lawn-save-v1';
-const defaultSave = () => ({ cleared: [], chal: {}, seen: {}, ach: {}, kills: 0, bestWave: 0, sfx: true, music: true, pick: [], boxGot: {}, luckyWin: false, mini: {} });
+const defaultSave = () => ({ cleared: [], chal: {}, seen: {}, ach: {}, kills: 0, bestWave: 0, sfx: true, music: true, pick: [], boxGot: {}, luckyWin: false, luckyBest: 0, mini: {} });
 let save = defaultSave();
 try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s) save = Object.assign(defaultSave(), s); } catch (e) {}
 function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
@@ -557,6 +588,8 @@ const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp01 = v => Math.max(0, Math.min(1, v));
 const cellCX = c => LX + c * CW + CW / 2;
 const cellCY = r => TOP + r * CH + CH / 2;
+// 僵尸走到这里（草坪右边缘）以后才会被植物攻击，避免还没看见就开火
+const VIS_X = LX + CW * COLS + 12;
 
 /* ================= 状态 ================= */
 let S, CFG, running = false, paused = false, speed = 1, beltDirty = false;
@@ -584,7 +617,7 @@ function newState(cfg, deck) {
     plants: Array.from({ length: ROWS }, () => Array(COLS).fill(null)),
     craters: Array.from({ length: ROWS }, () => Array(COLS).fill(0)),
     graves: Array.from({ length: ROWS }, () => Array(COLS).fill(0)),
-    zombies: [], peas: [], lobs: [], bees: [], rollers: [], suns: [], fx: [], parts: [], texts: [],
+    zombies: [], peas: [], lobs: [], bees: [], rollers: [], suns: [], fx: [], parts: [], texts: [], decals: [],
     belt: [], beltT: 1, beltId: 0, selBelt: null, fogClear: 0,
     mowers: Array.from({ length: ROWS }, () => ({ x: LX - 52, state: 'ready' })),
     cd, selected: null, nextSky: 5, lastRow: -1, banner: null, bannerFor: {},
@@ -692,6 +725,7 @@ function explodeDoom(r, c) {
   comboCheck(n);
   S.craters[r][c] = 25;
   S.fx.push({ type: 'boom', x: px, y: py, t: 0, dur: 1.1, big: true });
+  scorch(px, py + 30, 200);
   for (let i = 0; i < 40; i++) {
     const a = rnd(0, Math.PI * 2), sp = rnd(160, 520);
     part({ x: px, y: py, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 160, grav: 500, life: rnd(0.6, 1.2), size: rnd(3, 8), color: ['#3a1446', '#9b5de5', '#ff7a1a', '#e3263a', '#5b3613'][i % 5], shape: i % 3 ? 'circle' : 'rect', vr: rnd(-10, 10) });
@@ -708,7 +742,8 @@ function spawnZombie(type, atRow, atX) {
     do { row = Math.floor(Math.random() * ROWS); } while (row === S.lastRow && Math.random() < 0.7);
     S.lastRow = row;
   }
-  const d = ZDEF[type], hm = CFG.hpMul || 1;
+  // 无尽类模式：僵尸血量随波数上涨，每波 +4%
+  const d = ZDEF[type], hm = (CFG.hpMul || 1) * (CFG.waves === Infinity ? 1 + S.waveNum * 0.04 : 1);
   S.zombies.push({
     type, row, x: atX != null ? atX : W + 20 + rnd(0, 30), hp: d.hp * hm, armor: d.armor * hm, maxArmor: d.armor * hm,
     armorType: d.armorType, speed: d.speed * CFG.speedMul, pole: !!d.pole, jumping: 0,
@@ -716,6 +751,7 @@ function spawnZombie(type, atRow, atX) {
     dead: false, deadT: 0, burnt: false, ashed: false, armOff: false, headOff: false,
     garlicT: 0, rowShift: 0, maxHp: d.hp * hm,
     shield: (d.shield || 0) * hm, fly: !!d.fly, stop: 0, bounce: 0, smashT: 0, thrown: false, landT: 0,
+    under: type === 'digger', summonT: type === 'dancer' ? 1.5 : 0, hitJ: 0,
   });
   if (!save.seen[type]) {
     save.seen[type] = true; persist();
@@ -726,13 +762,22 @@ function spawnZombie(type, atRow, atX) {
 function part(o) {
   S.parts.push(Object.assign({ vx: 0, vy: 0, grav: 600, life: 0.6, t: 0, size: 4, color: '#fff', shape: 'circle', rot: 0, vr: 0, ground: null }, o));
 }
+// 开火时的枪口闪光
+function muzzle(x, y, color) {
+  for (let i = 0; i < 4; i++) part({ x, y, vx: rnd(40, 160), vy: rnd(-60, 60), grav: 0, life: 0.15, size: rnd(2, 4), color });
+  S.fx.push({ type: 'flash', x, y, t: 0, dur: 0.1, color });
+}
+// 命中光圈
+function hitRing(x, y, color) { S.fx.push({ type: 'ring', x, y, t: 0, dur: 0.25, color }); }
+// 爆炸在地上留下焦痕
+function scorch(x, y, r) { S.decals.push({ x, y, r, t: 0, life: 8 }); }
 function floatText(x, y, text, color = '#fff3d1', size = 20) {
   S.texts.push({ x, y, text, color, size, t: 0 });
 }
 // 僵尸脚下的 y 坐标（含换行动画和气球高度）
 function zombieY(z) { return cellCY(z.row) + 32 + (z.rowShift || 0) - (z.fly ? 60 : 0); }
 function zombieAhead(r, px) {
-  return S.zombies.some(z => z.row === r && !z.dead && z.x > px - 10 && z.x < W - 10);
+  return S.zombies.some(z => z.row === r && !z.dead && !z.under && z.x > px - 10 && z.x < VIS_X);
 }
 // 返回 true 表示这次攻击打死了僵尸
 // opt.front：从正面射来的直线子弹，会被盾牌挡住
@@ -775,7 +820,8 @@ function hurtZombie(z, dmg, opt = {}) {
       sfx('pop');
     }
   } else z.hp -= dmg;
-  z.flash = 0.1;
+  z.flash = 0.1; z.hitJ = Math.max(z.hitJ || 0, 0.08);
+  if (dmg >= 80 && dmg < 5000) floatText(z.x + rnd(-8, 8), zombieY(z) - 110, String(Math.round(dmg)), dmg >= 1000 ? '#ff6b3a' : '#ffe36b', dmg >= 1000 ? 22 : 15);
   if (!z.armOff && z.hp < 135 && z.hp > 0) {
     z.armOff = true;
     part({ shape: 'arm', x: z.x - 20, y: y - 58, vx: rnd(-60, -20), vy: rnd(-200, -120), vr: rnd(-8, 8), life: 1.1, ground: y });
@@ -795,6 +841,7 @@ function hurtZombie(z, dmg, opt = {}) {
 }
 function shoot(r, x, y, kind) {
   S.peas.push({ row: r, x, y, kind, dmg: kind === 'fire' ? 40 : 20 });
+  muzzle(x + 6, y, kind === 'fire' ? '#ffb12b' : kind === 'ice' ? '#bfe9ff' : '#c8f59a');
   sfx('shoot');
 }
 function comboCheck(n) { if (n >= 5) unlockAch('combo'); }
@@ -816,6 +863,7 @@ function explodeFire(r, c) {
     if (Math.abs(z.row - r) <= 1 && Math.abs(z.x - px) < 130 && hurtZombie(z, 1800, { burn: true })) n++;
   comboCheck(n);
   S.fx.push({ type: 'boom', x: px, y: py, t: 0, dur: 0.75 });
+  scorch(px, py + 30, 90);
   for (let i = 0; i < 22; i++) {
     const a = rnd(0, Math.PI * 2), sp = rnd(120, 360);
     part({ x: px, y: py, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 120, grav: 500, life: rnd(0.5, 0.9), size: rnd(3, 7), color: ['#ff7a1a', '#ffd23f', '#5b3613', '#e3263a'][i % 4], shape: i % 3 ? 'circle' : 'rect', vr: rnd(-10, 10) });
@@ -846,6 +894,7 @@ function burnRow(r) {
   for (const z of S.zombies) if (z.row === r && hurtZombie(z, 1800, { burn: true })) n++;
   comboCheck(n);
   S.fx.push({ type: 'fireline', x: 0, y: cellCY(r), t: 0, dur: 0.9 });
+  for (let i = 0; i < 6; i++) scorch(LX + 60 + i * 130, cellCY(r) + 30, 50);
   for (let i = 0; i < 30; i++)
     part({ x: rnd(LX, W), y: cellCY(r) + rnd(-10, 30), vx: rnd(-30, 30), vy: rnd(-260, -120), grav: -60, life: rnd(0.5, 1), size: rnd(3, 6), color: i % 2 ? '#ffb12b' : '#ff5a1a' });
   S.shake = Math.max(S.shake, 10); S.flashA = 0.4;
@@ -883,6 +932,8 @@ function updateEffects(dt) {
   S.texts = S.texts.filter(t => t.t < 1);
   for (const f of S.fx) f.t += dt;
   S.fx = S.fx.filter(f => f.t < f.dur);
+  for (const d of S.decals) d.t += dt;
+  S.decals = S.decals.filter(d => d.t < d.life);
 }
 
 function update(dt) {
@@ -919,7 +970,8 @@ function update(dt) {
         floatText(cellCX(c), cellCY(r) - 30, '咕噜…', '#c9ced1', 18);
       }
       S.nextWaveT += gapAfter(nxt);
-      if (CFG.waves === Infinity && nxt > 10) unlockAch('endless10');
+      if (CFG.mode === 'endless' && nxt > 10) unlockAch('endless10');
+      if (CFG.mode === 'lucky' && nxt > 15) { unlockAch('luckywin'); save.luckyWin = true; }
     }
   }
   for (const p of S.pending) if (p.t <= S.t) { spawnZombie(p.type, p.row, p.x); p.done = true; }
@@ -974,7 +1026,7 @@ function update(dt) {
           p.armed = true;
           for (let i = 0; i < 8; i++) part({ x: px + rnd(-18, 18), y: py + 24, vx: rnd(-60, 60), vy: rnd(-160, -60), life: 0.5, size: rnd(2, 4), color: '#7a5530' });
         }
-        if (p.armed && S.zombies.some(z => z.row === r && !z.dead && !z.fly && z.x - 16 < px + 38 && z.x > px - 30)) {
+        if (p.armed && S.zombies.some(z => z.row === r && !z.dead && !z.fly && !z.under && z.x - 16 < px + 38 && z.x > px - 30)) {
           S.plants[r][c] = null; explodeIce(r, c);
         }
         break;
@@ -998,7 +1050,7 @@ function update(dt) {
         } else {
           let best = null;
           for (const z of S.zombies)
-            if (z.row === r && !z.dead && z.jumping <= 0 && z.x > px - 30 && z.x < px + 130 && (!best || z.x < best.x)) best = z;
+            if (z.row === r && !z.dead && !z.under && z.jumping <= 0 && z.x > px - 30 && z.x < px + 130 && (!best || z.x < best.x)) best = z;
           if (best) { p.atk = { t: 0, tx: best.x, hit: false }; sfx('jump'); }
         }
         break;
@@ -1020,7 +1072,10 @@ function update(dt) {
           p.spikeT = 1;
           let hits = 0;
           for (const z of S.zombies)
-            if (z.row === r && !z.dead && !z.fly && z.jumping <= 0 && Math.abs(z.x - px) < 40) { hurtZombie(z, 20); hits++; }
+            if (z.row === r && !z.dead && !z.fly && !z.under && z.jumping <= 0 && Math.abs(z.x - px) < 40) {
+              if (z.type === 'zomboni') { hurtZombie(z, 9999); floatText(z.x, cellCY(r) - 40, '爆胎！', '#ffe36b', 24); p.hp = 0; } else hurtZombie(z, 20);
+              hits++;
+            }
           if (hits) {
             p.hp -= 10 * hits; p.hurt = 0.1;
             for (let i = 0; i < 4; i++) part({ x: px + rnd(-20, 20), y: py + 30, vx: rnd(-40, 40), vy: rnd(-140, -60), life: 0.35, size: 2.5, color: '#c9ced1', shape: 'rect', vr: 10 });
@@ -1035,6 +1090,7 @@ function update(dt) {
           p.shootT = 1.5; p.recoil = 0.12;
           for (const tr of [r - 1, r, r + 1]) if (tr >= 0 && tr < ROWS)
             S.peas.push({ row: tr, x: px + 20, y: py - 24, ty: cellCY(tr) - 14, kind: 'ice', dmg: 20 });
+          muzzle(px + 26, py - 24, '#bfe9ff');
           sfx('shoot');
         }
         break;
@@ -1042,7 +1098,7 @@ function update(dt) {
         p.shootT -= dt;
         if (p.shootT <= 0) {
           let tgt = null;
-          for (const z of S.zombies) if (z.row === r && !z.dead && z.x > px && z.x < W - 10 && (!tgt || z.x < tgt.x)) tgt = z;
+          for (const z of S.zombies) if (z.row === r && !z.dead && !z.under && z.x > px && z.x < VIS_X && (!tgt || z.x < tgt.x)) tgt = z;
           if (tgt) {
             p.shootT = 3; p.recoil = 0.25;
             S.lobs.push({ kind: 'melon', row: r, sx: px - 6, sy: py - 50, z: tgt, tx: tgt.x, t: 0, dur: 0.9 });
@@ -1055,6 +1111,7 @@ function update(dt) {
         if (p.shootT <= 0 && zombieAhead(r, px)) {
           p.shootT = 1.5; p.recoil = 0.3;
           for (let i = 0; i < 4; i++) S.peas.push({ row: r, x: px + 24 - i * 22, y: py - 14, kind: 'pea', dmg: 20 });
+          muzzle(px + 34, py - 14, '#ffe36b'); S.shake = Math.max(S.shake, 1);
           sfx('shoot');
         }
         break;
@@ -1063,6 +1120,7 @@ function update(dt) {
         if (p.shootT <= 0 && zombieAhead(r, px)) {
           p.shootT = 1.6; p.recoil = 0.12;
           S.peas.push({ row: r, x: px + 22, y: py - 14, kind: 'water', dmg: 20, pierce: true, hitSet: new Set() });
+          muzzle(px + 30, py - 14, '#6fd6f2');
           sfx('shoot');
         }
         break;
@@ -1071,7 +1129,7 @@ function update(dt) {
         if (p.shootT <= 0) {
           // 全场离房子最近的僵尸
           let tgt = null;
-          for (const z of S.zombies) if (!z.dead && z.x < W - 10 && z.jumping <= 0 && (!tgt || z.x < tgt.x)) tgt = z;
+          for (const z of S.zombies) if (!z.dead && !z.under && z.x < VIS_X && z.jumping <= 0 && (!tgt || z.x < tgt.x)) tgt = z;
           if (tgt) {
             p.shootT = 5; p.recoil = 0.35;
             S.lobs.push({ kind: 'shell', row: tgt.row, sx: px + 10, sy: py - 50, z: tgt, tx: tgt.x, t: 0, dur: 1.2 });
@@ -1101,7 +1159,7 @@ function update(dt) {
       case 'springgrass':
         p.boing = Math.max(0, (p.boing || 0) - dt);
         for (const z of S.zombies) {
-          if (z.row !== r || z.dead || z.fly || z.type === 'garg' || z.jumping > 0 || z.bounce > 0 || z.landT > 0 || Math.abs(z.x - px) > 26) continue;
+          if (z.row !== r || z.dead || z.fly || z.under || z.type === 'garg' || z.type === 'zomboni' || z.jumping > 0 || z.bounce > 0 || z.landT > 0 || Math.abs(z.x - px) > 26) continue;
           z.bounce = 0.55; z.eating = false;
           p.hp -= 50; p.hurt = 0.2; p.boing = 0.3;
           floatText(px, py - 40, '嘣！', '#e8ffd0', 22);
@@ -1111,7 +1169,7 @@ function update(dt) {
         break;
       case 'beeflower':
         p.shootT -= dt;
-        if (p.shootT <= 0 && S.zombies.some(z => !z.dead && z.x < W - 10)) {
+        if (p.shootT <= 0 && S.zombies.some(z => !z.dead && z.x < VIS_X)) {
           p.shootT = 2.5; p.recoil = 0.2;
           S.bees.push({ x: px + 4, y: py - 34, z: null, t: 0 });
           sfx('select');
@@ -1129,7 +1187,7 @@ function update(dt) {
         p.shootT -= dt;
         if (p.shootT <= 0) {
           let first = null;
-          for (const z of S.zombies) if (z.row === r && !z.dead && z.x > px && z.x < W - 10 && (!first || z.x < first.x)) first = z;
+          for (const z of S.zombies) if (z.row === r && !z.dead && !z.under && z.x > px && z.x < VIS_X && (!first || z.x < first.x)) first = z;
           if (first) {
             p.shootT = 2.5; p.recoil = 0.3;
             // 打中最近的僵尸后，再跳向附近 3 只（任意行）
@@ -1138,7 +1196,7 @@ function update(dt) {
             for (let n = 0; n < 3; n++) {
               let best = null, bd = 190;
               for (const z of S.zombies) {
-                if (z.dead || chain.includes(z) || z.x > W - 10) continue;
+                if (z.dead || z.under || chain.includes(z) || z.x > VIS_X) continue;
                 const d = Math.hypot(z.x - cur.x, cellCY(z.row) - cellCY(cur.row));
                 if (d < bd) { bd = d; best = z; }
               }
@@ -1148,9 +1206,65 @@ function update(dt) {
             const pts = [[px + 4, py - 54]].concat(chain.map(z => [z.x, zombieY(z) - 60]));
             for (const z of chain) hurtZombie(z, 50);
             S.fx.push({ type: 'bolt', pts, t: 0, dur: 0.28 });
-            S.fogClear = 1.5;
+            S.fogClear = 1.5; S.flashA = Math.max(S.flashA, 0.18);
             sfx('zap');
           }
+        }
+        break;
+      case 'twinsun':
+        p.sunT -= dt;
+        if (p.sunT <= 0) { p.sunT = 18; addSun(px - 14, py - 34, py + 12); addSun(px + 14, py - 34, py + 16); }
+        break;
+      case 'magnetnut':
+        p.magT = (p.magT == null ? 2 : p.magT) - dt;
+        if (p.magT <= 0) {
+          let best = null;
+          for (const z of S.zombies) {
+            if (z.dead || z.under || Math.abs(z.row - r) > 1 || z.x < px - 40 || z.x > px + CW * 3) continue;
+            if (!((METAL.has(z.armorType) && z.armor > 0) || z.shield > 0)) continue;
+            if (!best || z.x < best.x) best = z;
+          }
+          if (best) {
+            p.magT = 8; p.recoil = 0.4;
+            const shape = best.shield > 0 ? 'shield' : best.armorType;
+            if (best.shield > 0) best.shield = 0; else best.armor = 0;
+            const zy = zombieY(best) - (shape === 'shield' ? 50 : 100);
+            part({ shape, x: best.x, y: zy, vx: (px - best.x) / 0.5, vy: (py - 40 - zy) / 0.5, grav: 0, vr: 6, life: 0.5 });
+            S.fx.push({ type: 'magnet', x: px, y: py - 34, x2: best.x, y2: zy, t: 0, dur: 0.5 });
+            floatText(best.x, zy - 20, '吸走了！', '#ffb0b0', 18);
+            sfx('pop');
+          }
+        }
+        break;
+      case 'cactuspea':
+        p.shootT -= dt;
+        if (p.shootT <= 0 && zombieAhead(r, px)) {
+          p.shootT = 1.5; p.recoil = 0.12;
+          S.peas.push({ row: r, x: px + 24, y: py - 14, kind: 'spike', dmg: 25, pierce: true, air: true, pierceLeft: 2, hitSet: new Set() });
+          muzzle(px + 30, py - 14, '#c9e77a');
+          sfx('shoot');
+        }
+        break;
+      case 'laserbean':
+        p.shootT -= dt;
+        if (p.shootT <= 0 && zombieAhead(r, px)) {
+          p.shootT = 3; p.recoil = 0.35;
+          for (const z of S.zombies) if (z.row === r && !z.dead && !z.under && z.x > px && z.x < VIS_X) { hurtZombie(z, 60); z.hitJ = 0.15; }
+          S.fx.push({ type: 'laser', x: px + 20, y: py - 20, t: 0, dur: 0.35 });
+          S.shake = Math.max(S.shake, 3);
+          sfx('zap');
+        }
+        break;
+      case 'icecherry':
+        p.fuse -= dt;
+        if (p.fuse <= 0.4) {
+          S.plants[r][c] = null;
+          for (const z of S.zombies) if (!z.dead) { z.frozen = Math.max(z.frozen, 5); hurtZombie(z, 100); }
+          S.fx.push({ type: 'ice', x: W / 2, y: H / 2, t: 0, dur: 1, big: true });
+          for (let i = 0; i < 40; i++) part({ x: rnd(LX, W), y: rnd(TOP, H), vx: rnd(-40, 40), vy: rnd(20, 90), grav: 40, life: rnd(0.8, 1.4), size: rnd(2, 4), color: i % 2 ? '#ffffff' : '#bfe9ff', shape: 'rect', vr: 6 });
+          S.flashA = 0.6; S.shake = Math.max(S.shake, 8);
+          floatText(px, py - 50, '全场冻结！', '#bfe9ff', 26);
+          sfx('freeze'); sfx('boom');
         }
         break;
       case 'clockflower':
@@ -1180,7 +1294,33 @@ function update(dt) {
     }
     z.flash = Math.max(0, z.flash - dt);
     if (z.rowShift) z.rowShift = Math.sign(z.rowShift) * Math.max(0, Math.abs(z.rowShift) - 150 * dt);
+    z.hitJ = Math.max(0, z.hitJ - dt);
     if (z.landT > 0) { z.landT -= dt; continue; }
+    if (z.under) {
+      // 矿工在地下前进，钻到第三列时冒出来
+      z.x -= z.speed * dt; z.anim += dt;
+      if (Math.random() < 0.3) part({ x: z.x + 10, y: cellCY(z.row) + 32, vx: rnd(10, 60), vy: rnd(-80, -20), grav: 300, life: 0.4, size: rnd(2, 3), color: '#6b4a2b' });
+      if (z.x <= cellCX(2)) {
+        z.under = false; z.landT = 0.35; z.speed = ZDEF.normal.speed * CFG.speedMul;
+        floatText(z.x, cellCY(z.row) - 60, '冒出来了！', '#ffe36b', 20);
+        for (let i = 0; i < 14; i++) part({ x: z.x, y: cellCY(z.row) + 30, vx: rnd(-140, 140), vy: rnd(-260, -80), life: 0.6, size: rnd(3, 5), color: '#6b4a2b' });
+        S.shake = Math.max(S.shake, 4); sfx('slam');
+      }
+      continue;
+    }
+    if (z.type === 'dancer' && !z.summoned) {
+      z.summonT -= dt;
+      if (z.summonT <= 0 && z.x < VIS_X) {
+        // 召唤 4 个伴舞
+        z.summoned = true;
+        const spots = [[z.row, z.x - 70], [z.row, z.x + 70], [z.row - 1, z.x], [z.row + 1, z.x]];
+        for (const [rr2, xx] of spots) if (rr2 >= 0 && rr2 < ROWS) S.pending.push({ t: S.t, type: 'normal', row: rr2, x: Math.min(W - 10, xx) });
+        S.fx.push({ type: 'disco', x: z.x, y: cellCY(z.row), t: 0, dur: 1.2 });
+        floatText(z.x, cellCY(z.row) - 80, '♪ 伴舞上场 ♪', '#e7a6ff', 20);
+        sfx('horn');
+        z.stop = Math.max(z.stop, 1);
+      }
+    }
     if (z.frozen > 0) { z.frozen -= dt; continue; }
     if (z.stop > 0) { z.stop -= dt; continue; }
     if (z.bounce > 0) { z.bounce -= dt; z.x = Math.min(W - 20, z.x + 300 * dt); continue; }
@@ -1193,7 +1333,13 @@ function update(dt) {
       if (z.jumping <= 0) { z.pole = false; z.speed = ZDEF.normal.speed * CFG.speedMul; }
       continue;
     }
-    const tg = z.fly ? null : findTarget(z);
+    const tg = z.fly || z.under ? null : findTarget(z);
+    if (tg && z.type === 'zomboni') {
+      // 冰车直接碾碎植物，不停下
+      killPlant(z.row, tg.c);
+      floatText(cellCX(tg.c), cellCY(z.row) - 30, '咔嚓！', '#fff3d1', 22);
+      S.shake = Math.max(S.shake, 4); sfx('slam');
+    }
     if (tg && z.type === 'garg') {
       // 巨人：举锤 1.2 秒，一下砸烂植物
       z.eating = true;
@@ -1209,7 +1355,7 @@ function update(dt) {
       continue;
     }
     z.smashT = 0;
-    if (tg) {
+    if (tg && z.type !== 'zomboni') {
       if (z.pole) {
         z.pole = false; z.speed = ZDEF.normal.speed * CFG.speedMul;
         if (!NUTS.has(tg.p.type)) { z.jumping = 0.8; sfx('jump'); continue; }
@@ -1272,7 +1418,7 @@ function update(dt) {
         if (p.x <= p.home) { p.gone = true; continue; }
       }
       for (const z of S.zombies) {
-        if (z.row !== p.row || z.dead || z.fly || p.hitSet.has(z) || Math.abs(p.x - z.x) > 22) continue;
+        if (z.row !== p.row || z.dead || z.fly || z.under || p.hitSet.has(z) || Math.abs(p.x - z.x) > 22) continue;
         p.hitSet.add(z);
         hurtZombie(z, p.dmg, { front: !p.back });
         sfx('hit');
@@ -1295,10 +1441,13 @@ function update(dt) {
     // 水弹：穿透这一行每只僵尸各打一次，并往后推
     if (p.pierce) {
       for (const z of S.zombies) {
-        if (z.row !== p.row || z.dead || z.fly || p.hitSet.has(z) || p.x < z.x - 22 || p.x > z.x + 18) continue;
+        if (z.row !== p.row || z.dead || (z.fly && !p.air) || z.under || p.hitSet.has(z) || p.x < z.x - 22 || p.x > z.x + 18) continue;
         p.hitSet.add(z);
         hurtZombie(z, p.dmg, { front: true });
-        if (z.jumping <= 0) z.x = Math.min(W, z.x + 8);
+        z.hitJ = 0.1;
+        hitRing(p.x, p.y, p.kind === 'spike' ? '#c9e77a' : '#6fd6f2');
+        if (p.pierceLeft != null && --p.pierceLeft <= 0) { p.gone = true; break; }
+        if (p.kind !== 'spike' && z.jumping <= 0) z.x = Math.min(W, z.x + 8);
         for (let i = 0; i < 5; i++) part({ x: p.x, y: p.y, vx: rnd(-120, 60), vy: rnd(-180, 20), grav: 500, life: 0.35, size: rnd(2, 3.5), color: i % 2 ? '#bff3ff' : '#4fc3e8' });
         sfx('hit');
       }
@@ -1316,13 +1465,14 @@ function update(dt) {
     }
     let hit = null;
     for (const z of S.zombies)
-      if (z.row === p.row && !z.dead && !z.fly && z.landT <= 0 && p.x >= z.x - 22 && p.x <= z.x + 18 && (!hit || z.x < hit.x)) hit = z;
+      if (z.row === p.row && !z.dead && !z.fly && !z.under && z.landT <= 0 && p.x >= z.x - 22 && p.x <= z.x + 18 && (!hit || z.x < hit.x)) hit = z;
     if (hit) {
       const blocked = hit.shield > 0;
+      hitRing(p.x, p.y, blocked ? '#dfe6ea' : p.kind === 'fire' ? '#ffb12b' : p.kind === 'ice' ? '#bfe9ff' : '#c8f59a');
       hurtZombie(hit, p.dmg, { front: true, burn: p.kind === 'fire' && hit.armor <= 0 && hit.hp <= p.dmg && Math.random() < 0.3 });
       if (blocked) sfx('pop');
       if (p.kind === 'fire') {
-        for (const z of S.zombies) if (z !== hit && !z.fly && z.row === p.row && Math.abs(z.x - hit.x) < 50) hurtZombie(z, 13);
+        for (const z of S.zombies) if (z !== hit && !z.fly && !z.under && z.row === p.row && Math.abs(z.x - hit.x) < 50) hurtZombie(z, 13);
         hit.slow = 0;
         sfx('firehit');
       } else if (p.kind === 'ice') { hit.slow = 4; sfx('icehit'); }
@@ -1342,12 +1492,13 @@ function update(dt) {
       l.gone = true;
       const y = cellCY(l.row);
       for (const z of S.zombies) {
-        if (z.dead) continue;
+        if (z.dead || z.under) continue;
         const d = Math.abs(z.x - l.tx);
         if (z.row === l.row && d < 70) hurtZombie(z, d < 25 ? 150 : 60);
         else if (Math.abs(z.row - l.row) === 1 && d < 40) hurtZombie(z, 60);
       }
       S.fx.push({ type: 'shellboom', x: l.tx, y: y + 10, t: 0, dur: 0.5 });
+      scorch(l.tx, y + 30, 45);
       for (let i = 0; i < 14; i++) part({ x: l.tx, y: y + 10, vx: rnd(-180, 180), vy: rnd(-260, -60), grav: 600, life: rnd(0.4, 0.7), size: rnd(2, 5), color: ['#5b3a1c', '#ff7a1a', '#3b3a35'][i % 3], vr: 10, shape: i % 2 ? 'rect' : 'circle' });
       S.shake = Math.max(S.shake, 5);
       sfx('boom');
@@ -1355,7 +1506,7 @@ function update(dt) {
       l.gone = true;
       const y = cellCY(l.row);
       for (const z of S.zombies) {
-        if (z.dead || z.row !== l.row) continue;
+        if (z.dead || z.under || z.row !== l.row) continue;
         const d = Math.abs(z.x - l.tx);
         if (d < 70) { hurtZombie(z, d < 20 ? 80 : 26); z.slow = 4; }
       }
@@ -1372,7 +1523,7 @@ function update(dt) {
       b.z = null;
       let bd = Infinity;
       for (const z of S.zombies) {
-        if (z.dead || z.x > W - 10) continue;
+        if (z.dead || z.under || z.x > VIS_X) continue;
         const d = Math.hypot(z.x - b.x, zombieY(z) - b.y);
         if (d < bd) { bd = d; b.z = z; }
       }
@@ -1398,7 +1549,7 @@ function update(dt) {
     ro.x += 170 * dt; ro.spin += dt * 9;
     ro.y += (cellCY(ro.row) + 20 - ro.y) * Math.min(1, dt * 8);
     for (const z of S.zombies) {
-      if (z.dead || z.fly || z.row !== ro.row || ro.last === z || Math.abs(z.x - ro.x) > 26) continue;
+      if (z.dead || z.fly || z.under || z.row !== ro.row || ro.last === z || Math.abs(z.x - ro.x) > 26) continue;
       if (ro.kind === 'bombnut') {
         explodeFire(ro.row, Math.max(0, Math.min(COLS - 1, Math.floor((ro.x - LX) / CW))));
         ro.gone = true;
@@ -1867,6 +2018,64 @@ function drawPlant(type, x, y, t, p) {
       line(hx, hy, hx + Math.sin(-ct / 18 * Math.PI * 2) * 8, hy - Math.cos(-ct / 18 * Math.PI * 2) * 8, '#e3263a', 3);
       break;
     }
+    case 'twinsun': {
+      shadow(x, y + 2, 26);
+      stem(x, y, y - 30 + bob);
+      for (const [hx, hy] of [[x - 13, y - 44 + bob], [x + 13, y - 50 + bob]]) {
+        g.save(); g.translate(hx, hy); g.rotate(t * 0.4);
+        for (let i = 0; i < 10; i++) { g.save(); g.rotate(i * Math.PI / 5); ell(16, 0, 7, 4, '#ffd23f', '#c98a00', 1.2); g.restore(); }
+        g.restore();
+        ell(hx, hy, 11, 11, '#a8632a', '#5b3613', 2);
+        ell(hx - 4, hy - 2, 1.8, 2.2, '#111'); ell(hx + 4, hy - 2, 1.8, 2.2, '#111');
+        g.beginPath(); g.arc(hx, hy + 2, 4, 0.2 * Math.PI, 0.8 * Math.PI); g.strokeStyle = '#2b1d10'; g.lineWidth = 1.5; g.stroke();
+      }
+      break;
+    }
+    case 'magnetnut': {
+      shadow(x, y + 2, 26);
+      nut(x, y, ratio);
+      g.save(); g.translate(x, y - 64);
+      g.beginPath(); g.arc(0, 0, 14, Math.PI, 0); g.lineWidth = 9; g.strokeStyle = '#c8202c'; g.stroke();
+      g.fillStyle = '#c9ced1'; g.fillRect(-18.5, -1, 9, 8); g.fillRect(9.5, -1, 9, 8);
+      g.restore();
+      if (p && p.recoil > 0) ell(x, y - 64, 26, 20, null, 'rgba(255,90,90,.6)', 2);
+      break;
+    }
+    case 'cactuspea': {
+      shadow(x, y + 2, 22);
+      stem(x, y, y - 30 + bob);
+      const hx = x - 2 + rc, hy = y - 40 + bob;
+      peaHead(hx, hy, 16, '#7fb84a', '#2f5a14');
+      for (let i = 0; i < 7; i++) { const a = Math.PI * (0.75 + i * 0.12); line(hx + Math.cos(a) * 15, hy + Math.sin(a) * 15, hx + Math.cos(a) * 22, hy + Math.sin(a) * 22, '#e8f2c8', 2); }
+      ell(hx - 6, hy - 18, 4, 3, '#ff8ab3');
+      break;
+    }
+    case 'laserbean': {
+      shadow(x, y + 2, 22);
+      stem(x, y, y - 26 + bob);
+      const hx = x + rc, hy = y - 38 + bob;
+      ell(hx, hy, 18, 14, '#5c3b8a', '#2a1446', 2.5);
+      ell(hx + 16, hy - 2, 8, 7, '#2a1446');
+      const glow = 0.5 + 0.5 * Math.sin(t * 6);
+      ell(hx + 18, hy - 2, 5 + glow * 2, 5 + glow * 2, `rgba(255,111,168,${0.6 + glow * 0.4})`);
+      ell(hx - 5, hy - 4, 3.5, 4.5, '#fff', '#2a1446', 1); ell(hx - 4, hy - 3, 1.8, 2.2, '#111');
+      poly([hx - 6, hy - 14, hx, hy - 26, hx + 6, hy - 14], '#bfe9ff', '#2a1446', 1.5);
+      break;
+    }
+    case 'icecherry': {
+      const fuse = p ? 1 - p.fuse : 0;
+      const sc2 = 1 + fuse * 0.5;
+      shadow(x, y + 2, 22);
+      g.translate(x, y); g.scale(sc2, sc2); g.translate(-x, -y);
+      line(x + 2, y - 56, x - 10, y - 34, '#3d7a22', 3); line(x + 2, y - 56, x + 12, y - 36, '#3d7a22', 3);
+      ell(x + 5, y - 58, 8, 4, '#5fa832', '#2f6b1c', 1.2);
+      for (const [cx2, cy2] of [[x - 11, y - 22], [x + 13, y - 24]]) {
+        ell(cx2, cy2, 14, 14, '#8fd8f2', '#1f5f86', 2.5);
+        ell(cx2 - 5, cy2 - 5, 4, 3, 'rgba(255,255,255,.8)');
+        ell(cx2 - 4, cy2 + 1, 2, 2.5, '#111'); ell(cx2 + 4, cy2 + 1, 2, 2.5, '#111');
+      }
+      break;
+    }
     case 'bowlnut': case 'bombnut': {
       shadow(x, y + 2, 24);
       const bomb = type === 'bombnut';
@@ -1909,6 +2118,16 @@ function drawZombie(z, ox, oy) {
   else if (z.landT > 0) y -= 60 * (z.landT / 0.4);
   if (z.fly && ox == null) y -= 60;
   if (z.bounce > 0) y -= Math.sin((1 - z.bounce / 0.55) * Math.PI) * 45;
+  if (z.hitJ > 0 && !z.dead) x += rnd(-2.5, 2.5);
+  if (z.under && !z.dead) {
+    // 地下的矿工：只看到一个移动的土堆和镐尖
+    ell(x, y, 26, 8, '#6b4a2b', '#3e2611', 2);
+    ell(x + 4, y - 4, 16, 6, '#7a5530');
+    line(x - 10, y - 4, x - 20, y - 22 - Math.abs(Math.sin(z.anim * 8)) * 6, '#8a8f93', 3);
+    g.restore();
+    return;
+  }
+  if (z.type === 'zomboni') { if (z.dead) g.globalAlpha = 1 - clamp01(z.deadT / 0.8); drawZomboni(z, x, y, burnt); g.restore(); return; }
   const sc = z.type === 'garg' ? 1.55 : z.type === 'imp' ? 0.7 : 1;
   if (sc !== 1) { g.translate(x, y); g.scale(sc, sc); g.translate(-x, -y); }
   if (z.dead) {
@@ -1921,13 +2140,23 @@ function drawZombie(z, ox, oy) {
   } else shadow(x, y + 2, 22);
   if (z.jumping > 0) g.translate(0, -Math.sin((1 - z.jumping / 0.8) * Math.PI) * 55);
   const skin = burnt ? '#2a2a2a' : z.flash > 0 ? '#d6ead0' : z.slow > 0 ? '#9cc6d6' : z.type === 'imp' ? '#b9c99a' : '#a6bf9b';
-  const coat = burnt ? '#1c1c1c' : z.type === 'football' ? '#b3262e' : z.type === 'garg' ? '#5a4a3a' : z.type === 'imp' ? '#7a6a4a' : '#6b6f5e';
+  const coat = burnt ? '#1c1c1c' : z.type === 'football' ? '#b3262e' : z.type === 'garg' ? '#5a4a3a' : z.type === 'imp' ? '#7a6a4a' : z.type === 'dancer' ? '#6a2c8a' : z.type === 'digger' ? '#5a5a52' : '#6b6f5e';
   // 气球
   if (z.fly) {
     line(x - 4, y - 96, x + 6, y - 132, '#ddd', 1.5);
     ell(x + 8, y - 150, 16, 19, '#e3263a', '#7d0f1b', 2);
     ell(x + 3, y - 157, 4, 6, 'rgba(255,255,255,.55)');
     poly([x + 5, y - 131, x + 11, y - 131, x + 8, y - 127], '#7d0f1b');
+  }
+  // 舞王的爆炸头
+  if (z.type === 'dancer' && !z.headOff) {
+    ell(x - 4, y - 92, 22, 16, burnt ? '#111' : '#1b1214');
+    if (!burnt) { const s2 = Math.abs(Math.sin(S.t * 4)); ell(x + 14, y - 104, 2 + s2 * 2, 2 + s2 * 2, '#fff3a0'); }
+  }
+  // 矿工的镐
+  if (z.type === 'digger' && !z.dead) {
+    line(x + 12, y - 58, x + 20, y - 98, '#7a5530', 4);
+    poly([x + 6, y - 100, x + 34, y - 96, x + 20, y - 94], '#8a8f93', '#3f464b', 1.5);
   }
   // 巨人背上的小鬼
   if (z.type === 'garg' && !z.thrown && !z.dead) {
@@ -2038,6 +2267,11 @@ function drawArmor(z, hx, hy, burnt) {
     line(hx - 17, hy + 6, hx - 6, hy + 6, '#9aa3a8', 2.5);
     poly([hx - 9, hy - 16, hx + 9, hy - 16, hx + 7, hy - 30, hx - 7, hy - 30], burnt ? '#222' : '#a9b2b7', burnt ? '#000' : '#4b5257', 2);
     if (dmg < 0.5) line(hx - 4, hy - 12, hx + 6, hy - 4, '#3a0507', 2);
+  } else if (z.armorType === 'helmet') {
+    g.beginPath(); g.arc(hx, hy - 2, 16, Math.PI * 1.05, Math.PI * 1.95); g.closePath();
+    g.fillStyle = burnt ? '#222' : '#e8b62c'; g.fill(); g.strokeStyle = burnt ? '#000' : '#7a5a10'; g.lineWidth = 2.5; g.stroke();
+    ell(hx - 13, hy - 9, 5, 4, '#fff7c2', '#7a5a10', 1.5);
+    if (dmg < 0.5) line(hx + 2, hy - 15, hx + 8, hy - 6, '#5a3a05', 2);
   }
 }
 
@@ -2075,12 +2309,30 @@ function drawPart(p) {
       break;
     case 'arm': line(0, 0, -18, 4, '#6b6f5e', 6); ell(-20, 4, 4, 4, '#a6bf9b'); break;
     case 'pole': line(-30, 0, 30, 0, '#8a5a2e', 4); break;
+    case 'helmet':
+      g.beginPath(); g.arc(0, 6, 16, Math.PI * 1.05, Math.PI * 1.95); g.closePath();
+      g.fillStyle = '#e8b62c'; g.fill(); g.strokeStyle = '#7a5a10'; g.lineWidth = 2.5; g.stroke();
+      break;
     case 'shield':
       rr(-11, -34, 22, 68, 3); g.fillStyle = '#9aa3a8'; g.fill(); g.strokeStyle = '#3f464b'; g.lineWidth = 2.5; g.stroke();
       break;
     case 'plus': line(-p.size, 0, p.size, 0, p.color, 3); line(0, -p.size, 0, p.size, p.color, 3); break;
   }
   g.restore();
+}
+function drawZomboni(z, x, y, burnt) {
+  shadow(x + 10, y + 2, 46);
+  // 身后的冰道
+  if (!z.dead) { g.fillStyle = 'rgba(210,240,255,.55)'; g.fillRect(x + 40, y - 6, Math.min(240, VIS_X - x), 10); }
+  rr(x - 34, y - 52, 84, 44, 10); g.fillStyle = burnt ? '#222' : '#3f7fb8'; g.fill(); g.strokeStyle = burnt ? '#000' : '#1f3f5c'; g.lineWidth = 3; g.stroke();
+  rr(x - 44, y - 18, 30, 16, 4); g.fillStyle = burnt ? '#222' : '#c9ced1'; g.fill(); g.stroke();
+  ell(x + 30, y - 2, 14, 14, '#2b2b2b', '#111', 2); ell(x + 30, y - 2, 6, 6, '#777');
+  ell(x - 22, y + 2, 10, 10, '#2b2b2b', '#111', 2);
+  rr(x + 2, y - 86, 26, 36, 4); g.fillStyle = burnt ? '#222' : '#6b6f5e'; g.fill();
+  ell(x + 12, y - 96, 14, 14, burnt ? '#2a2a2a' : z.flash > 0 ? '#d6ead0' : '#a6bf9b', burnt ? '#000' : '#4f5e47');
+  if (!burnt) { ell(x + 6, y - 99, 3.5, 4, '#fff', '#4f5e47', 1); ell(x + 5, y - 98, 1.6, 1.6, '#222'); }
+  line(x - 2, y - 66, x - 14, y - 56, burnt ? '#222' : '#6b6f5e', 5);
+  if (z.frozen > 0 && !z.dead) { rr(x - 46, y - 112, 100, 116, 8); g.fillStyle = 'rgba(150,215,255,.42)'; g.fill(); }
 }
 function drawGrave(x, y, ratio) {
   shadow(x, y + 2, 24);
@@ -2119,7 +2371,7 @@ function drawHUD() {
   g.fillStyle = 'rgba(255,255,255,.1)'; g.fillRect(0, TOP - 3, W, 3);
   g.font = `20px ${FONT}`; g.textBaseline = 'middle'; g.textAlign = 'left';
   g.fillStyle = '#fff3d1';
-  g.fillText(CFG.waves === Infinity ? `无尽 · 第 ${Math.max(1, S.waveNum)} 波` : CFG.label, 14, TOP / 2 + 1);
+  g.fillText(CFG.waves === Infinity ? `${CFG.mode === 'lucky' ? '幸运盒子' : '无尽'} · 第 ${Math.max(1, S.waveNum)} 波` : CFG.label, 14, TOP / 2 + 1);
   const bx = W - 240, bw = 220, by = 13, bh = 14;
   if (CFG.waves !== Infinity) {
     rr(bx, by, bw, bh, 7); g.fillStyle = '#2a1c10'; g.fill();
@@ -2163,6 +2415,9 @@ function drawFx(f) {
     ell(f.x, f.y, 20 + k * 75, 16 + k * 55, `rgba(255,230,120,${0.9 * (1 - k)})`);
     ell(f.x, f.y, 50 + k * 160, 35 + k * 110, null, `rgba(255,255,255,${0.8 * (1 - k)})`, 4);
     if (k < 0.6) bigText('嘭！', f.x, f.y - 20, 40, '#ffe36b', '#4a1405', 1 + (1 - k) * 0.3);
+  } else if (f.type === 'ice' && f.big) {
+    g.fillStyle = `rgba(190,235,255,${0.45 * (1 - k)})`; g.fillRect(0, TOP, W, H - TOP);
+    ell(f.x, f.y, 60 + k * 500, 40 + k * 330, null, `rgba(255,255,255,${1 - k})`, 6);
   } else if (f.type === 'ice') {
     ell(f.x, f.y, 30 + k * 150, 20 + k * 95, `rgba(160,220,255,${0.7 * (1 - k)})`, `rgba(255,255,255,${1 - k})`, 3);
     for (let i = 0; i < 8; i++) {
@@ -2197,6 +2452,34 @@ function drawFx(f) {
     ell(f.x, f.y, 20 + k * 60, 14 + k * 36, `rgba(255,140,40,${0.8 * (1 - k)})`);
     ell(f.x, f.y, 30 + k * 80, 20 + k * 50, null, `rgba(255,255,255,${0.8 * (1 - k)})`, 3);
     if (k < 0.6) bigText('砰！', f.x, f.y - 30, 28, '#ffe36b', '#4a1405', 1 + (1 - k) * 0.2);
+  } else if (f.type === 'flash') {
+    ell(f.x, f.y, 10 + k * 8, 8 + k * 6, f.color);
+    ell(f.x, f.y, 5, 4, `rgba(255,255,255,${1 - k})`);
+  } else if (f.type === 'ring') {
+    ell(f.x, f.y, 6 + k * 22, 6 + k * 22, null, f.color, 3 * (1 - k) + 0.5);
+  } else if (f.type === 'laser') {
+    const a = 1 - k;
+    g.save(); g.globalAlpha = a;
+    line(f.x, f.y, W, f.y, 'rgba(255,60,120,.45)', 18 * (1 - k * 0.5));
+    line(f.x, f.y, W, f.y, '#ff6fa8', 7);
+    line(f.x, f.y, W, f.y, '#ffffff', 2.5);
+    for (let i = 0; i < 6; i++) ell(f.x + rnd(0, W - f.x), f.y + rnd(-8, 8), 3, 3, '#ffd0e6');
+    g.restore();
+  } else if (f.type === 'magnet') {
+    g.save(); g.globalAlpha = 1 - k;
+    g.beginPath(); g.moveTo(f.x, f.y); g.quadraticCurveTo((f.x + f.x2) / 2, Math.min(f.y, f.y2) - 40, f.x2, f.y2);
+    g.strokeStyle = '#ff5a5a'; g.lineWidth = 3; g.setLineDash([6, 6]); g.lineDashOffset = -k * 60; g.stroke(); g.setLineDash([]);
+    g.restore();
+  } else if (f.type === 'disco') {
+    g.save(); g.globalAlpha = 0.55 * (1 - k);
+    const cols = ['#ff6fd8', '#6fd6ff', '#ffe36b', '#9bff6f'];
+    for (let i = 0; i < 4; i++) {
+      const a2 = f.t * 4 + i * Math.PI / 2;
+      g.beginPath(); g.moveTo(f.x, f.y - 140);
+      g.lineTo(f.x + Math.cos(a2) * 120 - 20, f.y + 40); g.lineTo(f.x + Math.cos(a2) * 120 + 20, f.y + 40); g.closePath();
+      g.fillStyle = cols[i]; g.fill();
+    }
+    g.restore();
   } else if (f.type === 'plant') {
     for (let i = 0; i < 5; i++) ell(f.x - 24 + i * 12, f.y - k * 10, 7 * (1 - k), 5 * (1 - k), `rgba(122,85,48,${1 - k})`);
   }
@@ -2213,6 +2496,7 @@ function draw() {
     g.fillStyle = 'rgba(227,38,58,.12)'; g.fillRect(LX, TOP, CW * 3, CH * ROWS);
     line(LX + CW * 3, TOP + 4, LX + CW * 3, TOP + CH * ROWS - 4, '#e3263a', 4);
   }
+  for (const d of S.decals) ell(d.x, d.y, d.r, d.r * 0.32, `rgba(40,24,10,${0.45 * (1 - d.t / d.life)})`);
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (S.graves[r][c]) drawGrave(cellCX(c), cellCY(r) + 30, S.graves[r][c] / 600);
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
     const left = S.craters[r][c];
@@ -2263,6 +2547,9 @@ function draw() {
       ell(p.x - 9, p.y, 9, 4, 'rgba(191,233,255,.6)');
       ell(p.x, p.y, 7, 7, '#9fe2ff', '#1f5f86', 1.5);
       ell(p.x - 2, p.y - 2, 2.5, 2, '#fff');
+    } else if (p.kind === 'spike') {
+      line(p.x - 16, p.y, p.x - 4, p.y, 'rgba(201,231,122,.45)', 4);
+      poly([p.x - 8, p.y - 3, p.x + 10, p.y, p.x - 8, p.y + 3], '#c9e77a', '#3f6b12', 1.5);
     } else if (p.kind === 'boomer') {
       g.save(); g.translate(p.x, p.y); g.rotate(p.spin);
       g.beginPath(); g.moveTo(-14, -4); g.quadraticCurveTo(0, -14, 14, -4); g.lineTo(10, 2); g.quadraticCurveTo(0, -6, -10, 2); g.closePath();
@@ -2275,6 +2562,7 @@ function draw() {
       g.fillStyle = '#6fd6f2'; g.fill(); g.strokeStyle = '#1f7fa6'; g.lineWidth = 1.5; g.stroke();
       ell(p.x - 1, p.y - 2, 2.5, 1.8, '#fff');
     } else {
+      ell(p.x - 10, p.y, 10, 3.5, 'rgba(143,224,74,.35)');
       ell(p.x, p.y, 7, 7, '#8fe04a', '#2f6b1c', 1.5);
       ell(p.x - 2, p.y - 2, 2.5, 2, 'rgba(255,255,255,.7)');
     }
@@ -2378,7 +2666,7 @@ function drawIcon(canvas, kind, key, opt = {}) {
     g.translate(46, 90); g.scale(1.05, 1.05);
     drawPlant(key, 0, 0, 0, null);
   } else if (kind === 'zombie') {
-    const s = key === 'garg' ? 0.44 : key === 'balloon' ? 0.55 : key === 'imp' ? 0.95 : 0.7;
+    const s = key === 'garg' ? 0.44 : key === 'balloon' ? 0.55 : key === 'zomboni' ? 0.6 : key === 'imp' ? 0.95 : 0.7;
     g.translate(56, 97); g.scale(s, s);
     const d = ZDEF[key];
     drawZombie({ type: key, armor: d.armor, maxArmor: d.armor, armorType: d.armorType, pole: !!d.pole, jumping: 0, frozen: 0, slow: 0, flash: 0, anim: 0, eating: false, dead: false,
@@ -2562,7 +2850,7 @@ function showMenu() {
       el('button', { class: 'mbtn main', onclick: () => { sfx('select'); showLevels(); } },
         el('b', {}, '冒险模式'), el('span', {}, done >= LEVELS.length ? '全部通关！可以重玩任意关卡' : `已通关 ${done}/${LEVELS.length} · 下一关 ${LEVELS[nextLv].id} ${LEVELS[nextLv].name}`)),
       el('button', { class: 'mbtn main lucky', onclick: () => { sfx('select'); startFlow(luckyCfg()); } },
-        el('b', {}, '幸运盒子'), el('span', {}, save.luckyWin ? `已通关 · 开出过 ${Object.keys(save.boxGot).length}/${PLANT_ORDER.length} 种植物` : '花阳光买盒子，开出什么全看运气')),
+        el('b', {}, '幸运盒子'), el('span', {}, save.luckyBest ? `无尽开盒 · 最高第 ${save.luckyBest} 波 · 开出过 ${Object.keys(save.boxGot).length}/${PLANT_ORDER.length} 种植物` : '无尽模式：花阳光买盒子，开出什么全看运气')),
       el('button', { class: 'mbtn', onclick: () => { sfx('select'); showChallenges(); } }, el('b', {}, '挑战模式'), el('span', {}, `完成 ${chalN}/${CHALLENGES.length}`)),
       el('button', { class: 'mbtn', onclick: () => { sfx('select'); startFlow(endlessCfg()); } }, el('b', {}, '无尽模式'), el('span', {}, save.bestWave ? `最高第 ${save.bestWave} 波` : '看你能撑几波')),
       el('button', { class: 'mbtn', onclick: () => { sfx('select'); showAlmanac('plants'); } }, el('b', {}, '图鉴收藏'), el('span', {}, `图鉴 ${seenN}/${PLANT_ORDER.length + ZOMBIE_ORDER.length}`)),
@@ -2592,7 +2880,8 @@ function showMinigames() {
 }
 function chalCfg(c) { return makeCfg(Object.assign({ mode: 'challenge', id: c.id, label: `挑战：${c.name}`, plants: PICKABLE.slice() }, c.cfg)); }
 function endlessCfg() { return makeCfg({ mode: 'endless', label: '无尽模式', pool: ALL_POOL, waves: Infinity, flagEvery: 10, base: 1, grow: 0.6, startSun: 300, plants: PICKABLE.slice() }); }
-function luckyCfg() { return makeCfg({ mode: 'lucky', label: '幸运盒子', pool: ALL_POOL, waves: 15, flags: [5, 10, 15], base: 1, grow: 0.55, startSun: 200, diff: 2.2, hpMul: 1.8, freeRow: 'peaflower', plants: ['luckybox', 'goldbox'] }); }
+// 幸运盒子：无尽模式，开局 400 阳光，每 10 波一次旗帜波
+function luckyCfg() { return makeCfg({ mode: 'lucky', label: '幸运盒子', pool: ALL_POOL, waves: Infinity, flagEvery: 10, base: 0.8, grow: 0.55, startSun: 400, diff: 1.5, hpMul: 1.3, plants: ['luckybox', 'goldbox'] }); }
 
 function showLevels() {
   const chapters = [
@@ -2720,15 +3009,17 @@ function gameOver(won) {
   Sound.music(null);
   const body = [];
   const btns = [];
-  if (CFG.mode === 'endless') {
+  if (CFG.mode === 'endless' || CFG.mode === 'lucky') {
+    const key = CFG.mode === 'lucky' ? 'luckyBest' : 'bestWave';
     const wave = S.waveNum;
-    const best = wave > save.bestWave;
-    if (best) save.bestWave = wave;
+    const best = wave > save[key];
+    if (best) save[key] = wave;
     persist();
     sfx('lose');
-    body.push(el('p', {}, `撑到了第 ${wave} 波，消灭 ${S.kills} 只僵尸。${best ? '刷新了最高纪录！' : `最高纪录：第 ${save.bestWave} 波。`}`));
+    body.push(el('p', {}, `撑到了第 ${wave} 波，消灭 ${S.kills} 只僵尸。${best ? '刷新了最高纪录！' : `最高纪录：第 ${save[key]} 波。`}`));
+    if (CFG.mode === 'lucky') body.push(el('p', {}, `图鉴里已经开出过 ${Object.keys(save.boxGot).length}/${PLANT_ORDER.length} 种植物${S.boxZombies ? `，这局盒子里跳出过 ${S.boxZombies} 只僵尸` : ''}。`));
     btns.push(btn('再来一局', () => startGame(CFG, S.deck)), btn('主菜单', showMenu, 'alt'));
-    setTimeout(() => openOverlay(panel('', el('h1', {}, '草坪失守'), el('p', { class: 'sub' }, '无尽模式'), ...body, el('div', { class: 'btns' }, ...btns))), 700);
+    setTimeout(() => openOverlay(panel('', el('h1', {}, '草坪失守'), el('p', { class: 'sub' }, CFG.label), ...body, el('div', { class: 'btns' }, ...btns))), 700);
     return;
   }
   if (!won) {
@@ -2747,7 +3038,7 @@ function gameOver(won) {
     if (first) save.cleared.push(i);
     if (i === 0) unlockAch('first');
     if (LEVELS[i].id === '1-13') unlockAch('master');
-    if (LEVELS[i].id === '2-6') unlockAch('chapter2');
+    if (LEVELS[i].id === '2-10') unlockAch('chapter2');
     if (!S.mowerUsed) unlockAch('nomower');
     persist();
     if (first) {
@@ -2901,7 +3192,16 @@ function fit() {
   ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
 }
 new ResizeObserver(fit).observe(stage);
-window.addEventListener('orientationchange', () => setTimeout(fit, 200));
+// 把真实可见区域写进 CSS 变量，竖屏旋转时用它定尺寸（iPhone 上 dvh 在主屏幕 App 里不可靠）
+function measureScreen() {
+  const w = document.body.clientWidth || window.innerWidth, h = document.body.clientHeight || window.innerHeight;
+  document.documentElement.style.setProperty('--scr-w', w + 'px');
+  document.documentElement.style.setProperty('--scr-h', h + 'px');
+}
+measureScreen();
+window.addEventListener('resize', measureScreen);
+window.addEventListener('orientationchange', () => setTimeout(() => { measureScreen(); fit(); }, 200));
+if (window.visualViewport) window.visualViewport.addEventListener('resize', measureScreen);
 
 let last = performance.now();
 function frame(now) {

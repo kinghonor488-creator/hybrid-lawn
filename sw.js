@@ -1,5 +1,5 @@
 // 离线缓存：先用缓存秒开，同时在后台拉取新版本，下次打开生效
-const CACHE = 'hybrid-lawn-376555c43a';
+const CACHE = 'hybrid-lawn-0da534296b';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', e => {
